@@ -1,0 +1,3 @@
+from interfaces.token_repository import ITokenRepository
+from interfaces.otp_repository import IOTPRepository
+from interfaces.event_repository import IEventRepository

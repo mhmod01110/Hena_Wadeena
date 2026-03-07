@@ -1,0 +1,95 @@
+"""
+Docker Compose for Hena Wadeena Backend
+========================================
+Starts all microservices + PostgreSQL + Redis
+
+Usage:
+  docker-compose up -d           # Start all services
+  docker-compose logs -f gateway # Follow gateway logs
+  docker-compose down            # Stop all
+"""
+
+version: "3.9"
+
+services:
+  # ── Databases ────────────────────────────────────────────────────────────
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+
+  # ── API Gateway ──────────────────────────────────────────────────────────
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - AUTH_SERVICE_URL=http://auth-service:8001
+      - USER_SERVICE_URL=http://user-service:8002
+    depends_on:
+      auth-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+
+  # ── Auth Service ─────────────────────────────────────────────────────────
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: auth-service/Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - AUTH_DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/hena_auth
+      - REDIS_URL=redis://redis:6379/0
+      - USER_SERVICE_URL=http://user-service:8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── User Service ─────────────────────────────────────────────────────────
+
+  user-service:
+    build:
+      context: .
+      dockerfile: user-service/Dockerfile
+    ports:
+      - "8002:8002"
+    environment:
+      - USER_DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/hena_users
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+  redis_data:

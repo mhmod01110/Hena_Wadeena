@@ -1,0 +1,3 @@
+from interfaces.user_repository import IUserRepository
+from interfaces.kyc_repository import IKYCRepository
+from interfaces.preference_repository import IPreferenceRepository
