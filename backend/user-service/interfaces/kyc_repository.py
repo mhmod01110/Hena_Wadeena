@@ -1,7 +1,6 @@
 """Abstract interface for KYC repository."""
 
 from abc import ABC, abstractmethod
-from uuid import UUID
 
 from models import UserKYC
 
@@ -13,5 +12,5 @@ class IKYCRepository(ABC):
         ...
 
     @abstractmethod
-    async def get_by_user_id(self, user_id: UUID) -> list[UserKYC]:
+    async def get_by_user_id(self, user_id: str) -> list[UserKYC]:
         ...

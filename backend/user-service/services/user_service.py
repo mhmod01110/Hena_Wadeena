@@ -49,7 +49,7 @@ class UserService:
         return await self._user_repo.create(user)
 
     async def get_user(self, user_id: str) -> Optional[User]:
-        return await self._user_repo.get_by_id(uuid.UUID(user_id))
+        return await self._user_repo.get_by_id(str(user_id))
 
     async def lookup_user(self, email: Optional[str] = None, phone: Optional[str] = None) -> Optional[User]:
         if email:
@@ -73,21 +73,21 @@ class UserService:
     # ── Preferences ──────────────────────────────────────────────────────
 
     async def get_preferences(self, user_id: str) -> Optional[UserPreference]:
-        return await self._pref_repo.get(uuid.UUID(user_id))
+        return await self._pref_repo.get(str(user_id))
 
     async def update_preferences(self, user_id: str, **fields) -> UserPreference:
-        pref = UserPreference(user_id=uuid.UUID(user_id), **fields)
+        pref = UserPreference(user_id=str(user_id), **fields)
         return await self._pref_repo.upsert(pref)
 
     # ── KYC ──────────────────────────────────────────────────────────────
 
     async def add_kyc_document(self, user_id: str, doc_type: str, doc_url: str) -> UserKYC:
         kyc = UserKYC(
-            user_id=uuid.UUID(user_id),
+            user_id=str(user_id),
             doc_type=doc_type,
             doc_url=doc_url,
         )
         return await self._kyc_repo.create(kyc)
 
     async def get_kyc_documents(self, user_id: str) -> list[UserKYC]:
-        return await self._kyc_repo.get_by_user_id(uuid.UUID(user_id))
+        return await self._kyc_repo.get_by_user_id(str(user_id))

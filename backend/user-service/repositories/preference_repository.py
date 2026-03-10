@@ -1,7 +1,6 @@
 """Concrete preference repository."""
 
 from typing import Optional
-from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +14,7 @@ class SqlAlchemyPreferenceRepository(IPreferenceRepository):
     def __init__(self, session: AsyncSession):
         self._session = session
 
-    async def get(self, user_id: UUID) -> Optional[UserPreference]:
+    async def get(self, user_id: str) -> Optional[UserPreference]:
         result = await self._session.execute(
             select(UserPreference).where(UserPreference.user_id == user_id)
         )

@@ -1,6 +1,5 @@
 """Concrete KYC repository."""
 
-from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +19,7 @@ class SqlAlchemyKYCRepository(IKYCRepository):
         await self._session.refresh(kyc)
         return kyc
 
-    async def get_by_user_id(self, user_id: UUID) -> list[UserKYC]:
+    async def get_by_user_id(self, user_id: str) -> list[UserKYC]:
         result = await self._session.execute(
             select(UserKYC).where(UserKYC.user_id == user_id)
         )

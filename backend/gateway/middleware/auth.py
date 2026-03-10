@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from fastapi import Request, HTTPException, status
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
 
 from shared.utils.jwt import decode_access_token
 
@@ -42,11 +42,11 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
 
         auth = request.headers.get("Authorization")
         if not auth or not auth.startswith("Bearer "):
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Missing Authorization header")
+            return JSONResponse({"detail": "Missing Authorization header"}, status_code=401)
 
         payload = decode_access_token(auth.split(" ", 1)[1], self.secret_key, self.algorithm)
         if not payload:
-            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
+            return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
 
         request.state.user_id = payload["sub"]
         request.state.user_role = payload["role"]

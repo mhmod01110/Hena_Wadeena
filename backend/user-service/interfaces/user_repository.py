@@ -2,7 +2,6 @@
 
 from abc import ABC, abstractmethod
 from typing import Optional
-from uuid import UUID
 
 from models import User
 
@@ -14,7 +13,7 @@ class IUserRepository(ABC):
         ...
 
     @abstractmethod
-    async def get_by_id(self, user_id: UUID) -> Optional[User]:
+    async def get_by_id(self, user_id: str) -> Optional[User]:
         ...
 
     @abstractmethod

@@ -1,8 +1,6 @@
 """Concrete user repository."""
 
 from typing import Optional
-from uuid import UUID
-
 from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,7 +19,7 @@ class SqlAlchemyUserRepository(IUserRepository):
         await self._session.refresh(user)
         return user
 
-    async def get_by_id(self, user_id: UUID) -> Optional[User]:
+    async def get_by_id(self, user_id: str) -> Optional[User]:
         result = await self._session.execute(select(User).where(User.id == user_id))
         return result.scalar_one_or_none()
 
