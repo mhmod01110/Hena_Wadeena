@@ -1,0 +1,32 @@
+**/venv
+**/venv/
+**/venv
+**/venv/
+**/env
+**/env/
+
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+.Python
+
+# Databases
+*.db
+*.sqlite3
+
+# Test & coverage
+**/.pytest_cache
+.coverage
+htmlcov/
+tox/
+
+.env
+**/.env
+
+git/
+.gitignore
+
+vscode/
+idea/
+DS_Store

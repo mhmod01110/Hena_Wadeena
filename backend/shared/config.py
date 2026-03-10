@@ -8,7 +8,7 @@ class BaseAppSettings(BaseSettings):
     """Base settings shared across all services."""
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/hena_wadeena"
+    DATABASE_URL: str = "mysql+aiomysql://root:root@localhost:3307/hena_wadeena"
 
     # Redis
     REDIS_URL: str = "redis://localhost:6379/0"

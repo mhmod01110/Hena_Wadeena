@@ -7,10 +7,10 @@ class BaseAppSettings(BaseSettings):
     """Base settings inherited by all microservices."""
 
     # Database
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/hena_wadeena"
+    DATABASE_URL: str = "mysql+aiomysql://root:root@mysql:3306/hena_wadeena"
 
     # Redis
-    REDIS_URL: str = "redis://localhost:6379/0"
+    REDIS_URL: str = "redis://redis:6379/0"
 
     # JWT
     JWT_SECRET_KEY: str = "hena-wadeena-super-secret-key-change-in-production"

@@ -15,7 +15,7 @@ class AuthSettings(BaseAppSettings):
     DEBUG: bool = True
 
     # Auth-specific DB (can be separate from user DB)
-    AUTH_DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/hena_auth"
+    AUTH_DATABASE_URL: str = "mysql+aiomysql://root:root@localhost:3307/hena_auth"
 
     # OTP
     OTP_LENGTH: int = 6

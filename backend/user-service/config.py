@@ -14,7 +14,7 @@ class UserSettings(BaseAppSettings):
     APP_PORT: int = 8002
     DEBUG: bool = True
 
-    USER_DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/hena_users"
+    USER_DATABASE_URL: str = "mysql+aiomysql://root:root@localhost:3307/hena_users"
 
 
 settings = UserSettings()

@@ -16,7 +16,7 @@ backend/
 
 ### Prerequisites
 - Python 3.11+
-- PostgreSQL 16  
+- MySQL 8.0  
 - Redis 7
 
 ### Option 1: Docker Compose (recommended)
@@ -28,8 +28,8 @@ docker-compose up -d
 ### Option 2: Local Development
 ```bash
 # 1. Create databases
-psql -U postgres -c "CREATE DATABASE hena_auth;"
-psql -U postgres -c "CREATE DATABASE hena_users;"
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS hena_auth;"
+mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS hena_users;"
 
 # 2. Install dependencies
 cd auth-service && pip install -r requirements.txt && cd ..
@@ -83,7 +83,7 @@ cd gateway && uvicorn main:app --port 8000 --reload
 ## Tech Stack
 - **FastAPI** (Python) — async API framework
 - **SQLAlchemy** (async) — ORM
-- **PostgreSQL** — primary database  
+- **MySQL** — primary database  
 - **Redis** — caching, JWT blacklist
 - **bcrypt** — password hashing
 - **python-jose** — JWT tokens

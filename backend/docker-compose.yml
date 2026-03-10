@@ -1,32 +1,29 @@
-"""
-Docker Compose for Hena Wadeena Backend
-========================================
-Starts all microservices + PostgreSQL + Redis
+# Docker Compose for Hena Wadeena Backend
+# ========================================
+# Starts all microservices + MySQL + Redis
+# 
+# Usage:
+#   docker-compose up -d           # Start all services
+#   docker-compose logs -f gateway # Follow gateway logs
+#   docker-compose down            # Stop all
 
-Usage:
-  docker-compose up -d           # Start all services
-  docker-compose logs -f gateway # Follow gateway logs
-  docker-compose down            # Stop all
-"""
-
-version: "3.9"
 
 services:
-  # ── Databases ────────────────────────────────────────────────────────────
+    # ── Databases ────────────────────────────────────────────────────────────
 
-  postgres:
-    image: postgres:16-alpine
+  mysql:
+    image: mysql:8.0
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      MYSQL_ROOT_PASSWORD: root
+    command: --default-authentication-plugin=mysql_native_password --innodb-buffer-pool-size=64M
     ports:
-      - "5432:5432"
+      - "3307:3306"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - mysql_data:/var/lib/mysql
       - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
       timeout: 5s
       retries: 5
 
@@ -66,11 +63,11 @@ services:
     ports:
       - "8001:8001"
     environment:
-      - AUTH_DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/hena_auth
+      - AUTH_DATABASE_URL=mysql+aiomysql://root:root@mysql:3306/hena_auth
       - REDIS_URL=redis://redis:6379/0
       - USER_SERVICE_URL=http://user-service:8002
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -84,12 +81,12 @@ services:
     ports:
       - "8002:8002"
     environment:
-      - USER_DATABASE_URL=postgresql+asyncpg://postgres:postgres@postgres:5432/hena_users
+      - USER_DATABASE_URL=mysql+aiomysql://root:root@mysql:3306/hena_users
       - REDIS_URL=redis://redis:6379/0
     depends_on:
-      postgres:
+      mysql:
         condition: service_healthy
 
 volumes:
-  postgres_data:
+  mysql_data:
   redis_data:
