@@ -7,7 +7,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.core.database import create_db_engine, create_session_factory, Base
+from shared.core.database import create_db_engine, create_session_factory, Base, ensure_database_exists
 from core.config import settings
 
 engine = create_db_engine(settings.AUTH_DATABASE_URL, echo=settings.DEBUG)
@@ -27,6 +27,7 @@ async def get_session() -> AsyncSession:
 
 async def init_db():
     """Create all auth tables on startup."""
+    await ensure_database_exists(settings.AUTH_DATABASE_URL, echo=settings.DEBUG)
     # Import models so they register with Base.metadata
     import models  # noqa: F401
 

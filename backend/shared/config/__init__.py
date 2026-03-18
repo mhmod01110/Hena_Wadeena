@@ -29,10 +29,18 @@ class BaseAppSettings(BaseSettings):
     NOTIFICATION_SERVICE_URL: str = "http://localhost:8008"
     SEARCH_SERVICE_URL: str = "http://localhost:8009"
     AI_SERVICE_URL: str = "http://localhost:8010"
+    ADMIN_SERVICE_URL: str = "http://localhost:8011"
+    ANALYTICS_SERVICE_URL: str = "http://localhost:8012"
+    MEDIA_SERVICE_URL: str = "http://localhost:8013"
 
     # CORS
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:5173",
+        "http://localhost:5174",
+        "http://localhost:8080",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://127.0.0.1:8080",
         "http://localhost:3000",
         "https://hena-wadeena.com",
     ]

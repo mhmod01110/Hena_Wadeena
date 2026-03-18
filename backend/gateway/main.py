@@ -1,30 +1,30 @@
-"""
-Hena Wadeena — API Gateway
+﻿"""
+Hena Wadeena - API Gateway
 ===========================
 Lightweight reverse-proxy with JWT validation.
 
 Run:  uvicorn main:app --port 8000 --reload
 """
 
-import sys
 import os
+import sys
 import uuid
+
+import httpx
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fastapi import FastAPI, Request, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-import httpx
-
 from core.config import settings
+from local_api import router as local_api_router
 from middleware.auth import JWTAuthMiddleware
 
-# ── App ──────────────────────────────────────────────────────────────────────
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="API Gateway — Clean Architecture",
+    description="API Gateway - Clean Architecture",
     version="2.0.0",
 )
 
@@ -41,6 +41,10 @@ app.add_middleware(
     algorithm=settings.JWT_ALGORITHM,
 )
 
+if settings.ENABLE_LOCAL_API:
+    # Optional fallback local APIs for development only.
+    app.include_router(local_api_router)
+
 _http = httpx.AsyncClient(timeout=30.0)
 
 
@@ -54,10 +58,20 @@ async def health():
     return {"status": "healthy", "service": "gateway"}
 
 
+_STRIP_PREFIXES = {"/api/v1/auth", "/api/v1/users"}
+
+
 def _resolve(path: str):
     for prefix, url in settings.service_routes.items():
-        if path.startswith(prefix):
+        if not path.startswith(prefix):
+            continue
+
+        # auth-service and user-service routers are mounted without /api/v1 prefixes.
+        if prefix in _STRIP_PREFIXES:
             return url, path[len(prefix):] or "/"
+
+        # Other upgraded services expose full /api/v1/... routes.
+        return url, path
     return None
 
 
@@ -88,16 +102,21 @@ async def proxy(request: Request, path: str):
         resp = await _http.request(method=request.method, url=target, headers=headers, content=body)
         ct = resp.headers.get("content-type", "")
         content = resp.json() if ct.startswith("application/json") else {"raw": resp.text}
-        return JSONResponse(content=content, status_code=resp.status_code,
-                            headers={"X-Request-Id": req_id, "X-Proxied-To": svc_url})
+        return JSONResponse(
+            content=content,
+            status_code=resp.status_code,
+            headers={"X-Request-Id": req_id, "X-Proxied-To": svc_url},
+        )
     except httpx.ConnectError:
         raise HTTPException(503, "Service unavailable")
     except httpx.TimeoutException:
         raise HTTPException(504, "Gateway timeout")
-    except Exception as e:
-        raise HTTPException(502, f"Bad gateway: {e}")
+    except Exception as exc:
+        raise HTTPException(502, f"Bad gateway: {exc}")
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run("main:app", host="0.0.0.0", port=settings.APP_PORT, reload=True)
+

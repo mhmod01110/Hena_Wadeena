@@ -33,6 +33,9 @@ class GatewaySettings(BaseAppSettings):
             "/api/v1/notifications": self.NOTIFICATION_SERVICE_URL,
             "/api/v1/search": self.SEARCH_SERVICE_URL,
             "/api/v1/ai": self.AI_SERVICE_URL,
+            "/api/v1/admin": self.ADMIN_SERVICE_URL,
+            "/api/v1/analytics": self.ANALYTICS_SERVICE_URL,
+            "/api/v1/media": self.MEDIA_SERVICE_URL,
         }
 
 

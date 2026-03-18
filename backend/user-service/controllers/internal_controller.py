@@ -1,6 +1,5 @@
 """
-Internal controller — service-to-service endpoints (auth-service → user-service).
-Not exposed through the API gateway.
+Internal controller for service-to-service endpoints.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -20,20 +19,36 @@ async def create_user(
 ):
     try:
         user = await svc.create_user(
-            email=body.email, phone=body.phone,
-            full_name=body.full_name, password_hash=body.password_hash,
+            email=body.email,
+            phone=body.phone,
+            full_name=body.full_name,
+            password_hash=body.password_hash,
             role=body.role,
+            city=body.city,
+            organization=body.organization,
+            documents=[document.model_dump() for document in body.documents],
         )
-    except ValueError as e:
-        raise HTTPException(409, str(e))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+    except Exception as exc:
+        raise HTTPException(500, f"Failed to create user: {exc}")
 
     return {
-        "id": str(user.id), "email": user.email, "phone": user.phone,
-        "full_name": user.full_name, "role": user.role, "status": user.status,
+        "id": str(user.id),
+        "email": user.email,
+        "phone": user.phone,
+        "full_name": user.full_name,
+        "display_name": user.display_name,
+        "avatar_url": user.avatar_url,
+        "city": user.city,
+        "organization": user.organization,
+        "language": user.language,
+        "role": user.role,
+        "status": user.status,
     }
 
 
-@router.get("/lookup")
+@router.get("/lookup", response_model=InternalUserResponse)
 async def lookup_user(
     email: str = None,
     phone: str = None,
@@ -42,14 +57,24 @@ async def lookup_user(
     user = await svc.lookup_user(email=email, phone=phone)
     if not user:
         raise HTTPException(404, "User not found")
+
     return InternalUserResponse(
-        id=str(user.id), email=user.email, phone=user.phone,
-        full_name=user.full_name, password_hash=user.password_hash,
-        role=user.role, status=user.status,
+        id=str(user.id),
+        email=user.email,
+        phone=user.phone,
+        full_name=user.full_name,
+        display_name=user.display_name,
+        avatar_url=user.avatar_url,
+        city=user.city,
+        organization=user.organization,
+        language=user.language,
+        password_hash=user.password_hash,
+        role=user.role,
+        status=user.status,
     )
 
 
-@router.get("/{user_id}")
+@router.get("/{user_id}", response_model=InternalUserResponse)
 async def get_user(
     user_id: str,
     svc: UserService = Depends(get_user_service),
@@ -57,8 +82,18 @@ async def get_user(
     user = await svc.get_user(user_id)
     if not user:
         raise HTTPException(404, "User not found")
+
     return InternalUserResponse(
-        id=str(user.id), email=user.email, phone=user.phone,
-        full_name=user.full_name, password_hash=user.password_hash,
-        role=user.role, status=user.status,
+        id=str(user.id),
+        email=user.email,
+        phone=user.phone,
+        full_name=user.full_name,
+        display_name=user.display_name,
+        avatar_url=user.avatar_url,
+        city=user.city,
+        organization=user.organization,
+        language=user.language,
+        password_hash=user.password_hash,
+        role=user.role,
+        status=user.status,
     )

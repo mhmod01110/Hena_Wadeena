@@ -1,6 +1,5 @@
-"""
-User controller — thin HTTP layer for public and KYC endpoints.
-All BL delegated to UserService.
+﻿"""
+Public user controller.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -24,7 +23,23 @@ def _user_role(request: Request) -> str:
     return request.headers.get("X-User-Role", "tourist")
 
 
-# ── Profile ──────────────────────────────────────────────────────────────────
+def _user_profile_response(user) -> UserProfile:
+    return UserProfile(
+        id=str(user.id),
+        email=user.email,
+        phone=user.phone,
+        full_name=user.full_name,
+        display_name=user.display_name,
+        avatar_url=user.avatar_url,
+        city=user.city,
+        organization=user.organization,
+        role=user.role,
+        status=user.status,
+        language=user.language,
+        verified_at=user.verified_at,
+        created_at=user.created_at,
+    )
+
 
 @router.get("/me", response_model=UserProfile)
 async def get_my_profile(
@@ -34,12 +49,7 @@ async def get_my_profile(
     user = await svc.get_user(_user_id(request))
     if not user:
         raise HTTPException(404, "User not found")
-    return UserProfile(
-        id=str(user.id), email=user.email, phone=user.phone,
-        full_name=user.full_name, display_name=user.display_name,
-        avatar_url=user.avatar_url, role=user.role, status=user.status,
-        language=user.language, verified_at=user.verified_at, created_at=user.created_at,
-    )
+    return _user_profile_response(user)
 
 
 @router.put("/me", response_model=UserProfile)
@@ -48,15 +58,14 @@ async def update_my_profile(
     request: Request,
     svc: UserService = Depends(get_user_service),
 ):
-    user = await svc.update_profile(_user_id(request), **body.model_dump(exclude_unset=True))
+    try:
+        user = await svc.update_profile(_user_id(request), **body.model_dump(exclude_unset=True))
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
+
     if not user:
         raise HTTPException(404, "User not found")
-    return UserProfile(
-        id=str(user.id), email=user.email, phone=user.phone,
-        full_name=user.full_name, display_name=user.display_name,
-        avatar_url=user.avatar_url, role=user.role, status=user.status,
-        language=user.language, verified_at=user.verified_at, created_at=user.created_at,
-    )
+    return _user_profile_response(user)
 
 
 @router.get("/{user_id}", response_model=UserProfile)
@@ -67,18 +76,12 @@ async def get_user_by_id(
 ):
     if _user_role(request) not in ("admin", "super_admin"):
         raise HTTPException(403, "Admin access required")
+
     user = await svc.get_user(user_id)
     if not user:
         raise HTTPException(404, "User not found")
-    return UserProfile(
-        id=str(user.id), email=user.email, phone=user.phone,
-        full_name=user.full_name, display_name=user.display_name,
-        avatar_url=user.avatar_url, role=user.role, status=user.status,
-        language=user.language, verified_at=user.verified_at, created_at=user.created_at,
-    )
+    return _user_profile_response(user)
 
-
-# ── Preferences ──────────────────────────────────────────────────────────────
 
 @router.get("/me/preferences", response_model=PreferenceResponse)
 async def get_preferences(
@@ -88,9 +91,12 @@ async def get_preferences(
     prefs = await svc.get_preferences(_user_id(request))
     if not prefs:
         return PreferenceResponse()
+
     return PreferenceResponse(
-        notify_push=prefs.notify_push, notify_email=prefs.notify_email,
-        notify_sms=prefs.notify_sms, preferred_areas=prefs.preferred_areas or [],
+        notify_push=prefs.notify_push,
+        notify_email=prefs.notify_email,
+        notify_sms=prefs.notify_sms,
+        preferred_areas=prefs.preferred_areas or [],
         interests=prefs.interests or [],
     )
 
@@ -103,13 +109,13 @@ async def update_preferences(
 ):
     prefs = await svc.update_preferences(_user_id(request), **body.model_dump())
     return PreferenceResponse(
-        notify_push=prefs.notify_push, notify_email=prefs.notify_email,
-        notify_sms=prefs.notify_sms, preferred_areas=prefs.preferred_areas or [],
+        notify_push=prefs.notify_push,
+        notify_email=prefs.notify_email,
+        notify_sms=prefs.notify_sms,
+        preferred_areas=prefs.preferred_areas or [],
         interests=prefs.interests or [],
     )
 
-
-# ── KYC ──────────────────────────────────────────────────────────────────────
 
 @router.post("/me/kyc", response_model=KYCStatusResponse, status_code=201)
 async def upload_kyc(
@@ -119,8 +125,12 @@ async def upload_kyc(
 ):
     kyc = await svc.add_kyc_document(_user_id(request), body.doc_type, body.doc_url)
     return KYCStatusResponse(
-        id=str(kyc.id), doc_type=kyc.doc_type, doc_url=kyc.doc_url,
-        status=kyc.status, rejection_reason=kyc.rejection_reason, created_at=kyc.created_at,
+        id=str(kyc.id),
+        doc_type=kyc.doc_type,
+        doc_url=kyc.doc_url,
+        status=kyc.status,
+        rejection_reason=kyc.rejection_reason,
+        created_at=kyc.created_at,
     )
 
 
@@ -132,8 +142,12 @@ async def get_kyc_status(
     docs = await svc.get_kyc_documents(_user_id(request))
     return [
         KYCStatusResponse(
-            id=str(d.id), doc_type=d.doc_type, doc_url=d.doc_url,
-            status=d.status, rejection_reason=d.rejection_reason, created_at=d.created_at,
+            id=str(doc.id),
+            doc_type=doc.doc_type,
+            doc_url=doc.doc_url,
+            status=doc.status,
+            rejection_reason=doc.rejection_reason,
+            created_at=doc.created_at,
         )
-        for d in docs
+        for doc in docs
     ]

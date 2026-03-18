@@ -1,3 +1,14 @@
--- Initialize databases for each service
+-- Initialize databases for all microservices
 CREATE DATABASE IF NOT EXISTS hena_auth;
 CREATE DATABASE IF NOT EXISTS hena_users;
+CREATE DATABASE IF NOT EXISTS hena_map;
+CREATE DATABASE IF NOT EXISTS hena_market;
+CREATE DATABASE IF NOT EXISTS hena_guide;
+CREATE DATABASE IF NOT EXISTS hena_investment;
+CREATE DATABASE IF NOT EXISTS hena_payment;
+CREATE DATABASE IF NOT EXISTS hena_notification;
+CREATE DATABASE IF NOT EXISTS hena_search;
+CREATE DATABASE IF NOT EXISTS hena_ai;
+CREATE DATABASE IF NOT EXISTS hena_admin;
+CREATE DATABASE IF NOT EXISTS hena_analytics;
+CREATE DATABASE IF NOT EXISTS hena_media;

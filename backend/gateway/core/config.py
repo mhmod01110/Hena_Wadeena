@@ -1,7 +1,7 @@
-"""Gateway configuration."""
+﻿"""Gateway configuration."""
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -12,9 +12,11 @@ class GatewaySettings(BaseAppSettings):
     APP_NAME: str = "Hena Wadeena API Gateway"
     APP_PORT: int = 8000
     DEBUG: bool = True
+    ENABLE_LOCAL_API: bool = False
 
     @property
     def service_routes(self) -> dict[str, str]:
+        # Keep both singular/plural aliases to avoid client routing breakage.
         return {
             "/api/v1/auth": self.AUTH_SERVICE_URL,
             "/api/v1/users": self.USER_SERVICE_URL,
@@ -22,15 +24,22 @@ class GatewaySettings(BaseAppSettings):
             "/api/v1/carpool": self.MAP_SERVICE_URL,
             "/api/v1/market": self.MARKET_SERVICE_URL,
             "/api/v1/listings": self.MARKET_SERVICE_URL,
+            "/api/v1/tourism": self.GUIDE_SERVICE_URL,
+            "/api/v1/logistics": self.MAP_SERVICE_URL,
             "/api/v1/guides": self.GUIDE_SERVICE_URL,
             "/api/v1/bookings": self.GUIDE_SERVICE_URL,
+            "/api/v1/investment": self.INVESTMENT_SERVICE_URL,
             "/api/v1/investments": self.INVESTMENT_SERVICE_URL,
             "/api/v1/payments": self.PAYMENT_SERVICE_URL,
             "/api/v1/wallet": self.PAYMENT_SERVICE_URL,
             "/api/v1/notifications": self.NOTIFICATION_SERVICE_URL,
             "/api/v1/search": self.SEARCH_SERVICE_URL,
             "/api/v1/ai": self.AI_SERVICE_URL,
+            "/api/v1/admin": self.ADMIN_SERVICE_URL,
+            "/api/v1/analytics": self.ANALYTICS_SERVICE_URL,
+            "/api/v1/media": self.MEDIA_SERVICE_URL,
         }
 
 
 settings = GatewaySettings()
+

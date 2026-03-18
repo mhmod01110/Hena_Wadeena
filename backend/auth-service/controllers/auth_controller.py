@@ -1,7 +1,5 @@
-"""
-Auth controller — THIN HTTP layer.
-Only handles: request parsing, status codes, response formatting.
-All business logic delegated to AuthService / OTPService.
+﻿"""
+Auth controller.
 """
 
 import sys
@@ -9,7 +7,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 import httpx
 
 from schemas.requests import (
@@ -19,15 +17,13 @@ from schemas.requests import (
     OTPRequestSchema,
     OTPVerifySchema,
 )
-from schemas.responses import AuthResponse, TokenResponse
+from schemas.responses import AuthResponse, TokenResponse, UserInfo
 from services.auth_service import AuthService
 from services.otp_service import OTPService
 from core.dependencies import get_auth_service, get_otp_service
 from core.config import settings
 
 router = APIRouter()
-
-# HTTP client for inter-service calls
 _http = httpx.AsyncClient(timeout=10.0)
 
 
@@ -35,7 +31,21 @@ def _client_ip(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
-# ── POST /register ───────────────────────────────────────────────────────────
+def _build_user_info(user: dict) -> UserInfo:
+    return UserInfo(
+        id=user["id"],
+        email=user.get("email"),
+        phone=user.get("phone"),
+        full_name=user["full_name"],
+        display_name=user.get("display_name"),
+        avatar_url=user.get("avatar_url"),
+        city=user.get("city"),
+        organization=user.get("organization"),
+        role=user.get("role", "tourist"),
+        status=user.get("status", "active"),
+        language=user.get("language", "ar"),
+    )
+
 
 @router.post("/register", response_model=AuthResponse, status_code=201)
 async def register(
@@ -43,7 +53,6 @@ async def register(
     request: Request,
     auth_svc: AuthService = Depends(get_auth_service),
 ):
-    # 1. Create user in user-service
     try:
         resp = await _http.post(
             f"{settings.USER_SERVICE_URL}/internal/users",
@@ -53,6 +62,9 @@ async def register(
                 "full_name": body.full_name,
                 "password_hash": auth_svc.hash_password(body.password),
                 "role": body.role,
+                "city": body.city,
+                "organization": body.organization,
+                "documents": [document.model_dump() for document in body.documents],
             },
         )
     except httpx.ConnectError:
@@ -64,19 +76,20 @@ async def register(
         raise HTTPException(502, "Failed to create user")
 
     user = resp.json()
-
-    # 2. Issue tokens
     tokens = await auth_svc.issue_tokens(
-        user_id=user["id"], role=body.role, ip_address=_client_ip(request),
+        user_id=user["id"],
+        role=body.role,
+        ip_address=_client_ip(request),
     )
 
-    # 3. Audit log
     await auth_svc.log_event("register", user["id"], _client_ip(request), request.headers.get("user-agent"))
 
-    return AuthResponse(success=True, message="تم إنشاء الحساب بنجاح", data=TokenResponse(**tokens))
+    return AuthResponse(
+        success=True,
+        message="Account created successfully",
+        data=TokenResponse(**tokens, user=_build_user_info(user)),
+    )
 
-
-# ── POST /login ──────────────────────────────────────────────────────────────
 
 @router.post("/login", response_model=AuthResponse)
 async def login(
@@ -87,7 +100,6 @@ async def login(
     if not body.email and not body.phone:
         raise HTTPException(400, "Email or phone is required")
 
-    # 1. Lookup user
     try:
         lookup_type = "email" if body.email else "phone"
         resp = await _http.get(
@@ -99,29 +111,32 @@ async def login(
 
     if resp.status_code == 404:
         await auth_svc.log_event("failed_login", ip_address=_client_ip(request))
-        raise HTTPException(401, "بيانات الدخول غير صحيحة")
+        raise HTTPException(401, "Invalid credentials")
+    if resp.status_code != 200:
+        raise HTTPException(502, "Failed to fetch user")
 
     user = resp.json()
 
-    # 2. Verify password
     if not auth_svc.verify_password(body.password, user["password_hash"]):
         await auth_svc.log_event("failed_login", user["id"], _client_ip(request))
-        raise HTTPException(401, "بيانات الدخول غير صحيحة")
+        raise HTTPException(401, "Invalid credentials")
 
     if user.get("status") != "active":
-        raise HTTPException(403, "الحساب معلق أو محظور")
+        raise HTTPException(403, "Account is not active")
 
-    # 3. Issue tokens
     tokens = await auth_svc.issue_tokens(
-        user_id=user["id"], role=user["role"], ip_address=_client_ip(request),
+        user_id=user["id"],
+        role=user["role"],
+        ip_address=_client_ip(request),
     )
-
     await auth_svc.log_event("login", user["id"], _client_ip(request), request.headers.get("user-agent"))
 
-    return AuthResponse(success=True, message="تم تسجيل الدخول بنجاح", data=TokenResponse(**tokens))
+    return AuthResponse(
+        success=True,
+        message="Login successful",
+        data=TokenResponse(**tokens, user=_build_user_info(user)),
+    )
 
-
-# ── POST /refresh ────────────────────────────────────────────────────────────
 
 @router.post("/refresh", response_model=AuthResponse)
 async def refresh(
@@ -133,21 +148,35 @@ async def refresh(
     if not record:
         raise HTTPException(401, "Invalid or expired refresh token")
 
-    # Get current role
     try:
         resp = await _http.get(f"{settings.USER_SERVICE_URL}/internal/users/{record.user_id}")
-        role = resp.json().get("role", "tourist")
+        if resp.status_code != 200:
+            raise ValueError("Failed to fetch user")
+        user = resp.json()
+        role = user.get("role", "tourist")
     except Exception:
+        user = {
+            "id": str(record.user_id),
+            "full_name": "User",
+            "role": "tourist",
+            "status": "active",
+            "language": "ar",
+        }
         role = "tourist"
 
     tokens = await auth_svc.rotate_refresh_token(
-        body.refresh_token, str(record.user_id), role, _client_ip(request),
+        body.refresh_token,
+        str(record.user_id),
+        role,
+        _client_ip(request),
     )
 
-    return AuthResponse(success=True, message="Token refreshed", data=TokenResponse(**tokens))
+    return AuthResponse(
+        success=True,
+        message="Token refreshed",
+        data=TokenResponse(**tokens, user=_build_user_info(user)),
+    )
 
-
-# ── POST /logout ─────────────────────────────────────────────────────────────
 
 @router.post("/logout")
 async def logout(
@@ -160,10 +189,8 @@ async def logout(
     user_id = request.headers.get("X-User-Id")
     await auth_svc.log_event("logout", user_id, _client_ip(request))
 
-    return {"success": True, "message": "تم تسجيل الخروج بنجاح"}
+    return {"success": True, "message": "Logged out successfully"}
 
-
-# ── POST /otp/request ────────────────────────────────────────────────────────
 
 @router.post("/otp/request")
 async def request_otp(
@@ -171,15 +198,12 @@ async def request_otp(
     otp_svc: OTPService = Depends(get_otp_service),
 ):
     code = await otp_svc.request_otp(body.phone, body.purpose)
-
     return {
         "success": True,
-        "message": "تم إرسال رمز التحقق",
+        "message": "OTP sent successfully",
         "debug_otp": code if settings.DEBUG else None,
     }
 
-
-# ── POST /otp/verify ────────────────────────────────────────────────────────
 
 @router.post("/otp/verify", response_model=AuthResponse)
 async def verify_otp(
@@ -189,9 +213,8 @@ async def verify_otp(
     auth_svc: AuthService = Depends(get_auth_service),
 ):
     if not await otp_svc.verify_otp(body.phone, body.code, "login"):
-        raise HTTPException(400, "رمز التحقق غير صحيح أو منتهي الصلاحية")
+        raise HTTPException(400, "Invalid or expired OTP code")
 
-    # Lookup or auto-create user
     try:
         resp = await _http.get(
             f"{settings.USER_SERVICE_URL}/internal/users/lookup",
@@ -204,13 +227,40 @@ async def verify_otp(
             )
             if resp.status_code != 201:
                 raise HTTPException(502, "Failed to create user")
+        elif resp.status_code != 200:
+            raise HTTPException(502, "Failed to fetch user")
 
         user = resp.json()
     except httpx.ConnectError:
         raise HTTPException(503, "User service unavailable")
 
     tokens = await auth_svc.issue_tokens(
-        user_id=user["id"], role=user.get("role", "tourist"), ip_address=_client_ip(request),
+        user_id=user["id"],
+        role=user.get("role", "tourist"),
+        ip_address=_client_ip(request),
     )
 
-    return AuthResponse(success=True, message="تم تسجيل الدخول بنجاح", data=TokenResponse(**tokens))
+    return AuthResponse(
+        success=True,
+        message="Login successful",
+        data=TokenResponse(**tokens, user=_build_user_info(user)),
+    )
+
+
+@router.get("/me", response_model=UserInfo)
+async def get_me(request: Request):
+    user_id = request.headers.get("X-User-Id")
+    if not user_id:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not authenticated")
+
+    try:
+        resp = await _http.get(f"{settings.USER_SERVICE_URL}/internal/users/{user_id}")
+    except httpx.ConnectError:
+        raise HTTPException(503, "User service unavailable")
+
+    if resp.status_code == 404:
+        raise HTTPException(404, "User not found")
+    if resp.status_code != 200:
+        raise HTTPException(502, "Failed to fetch user profile")
+
+    return _build_user_info(resp.json())

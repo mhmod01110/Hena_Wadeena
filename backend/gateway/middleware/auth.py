@@ -1,13 +1,13 @@
 """JWT authentication middleware for the API Gateway."""
 
-import sys
 import os
+import sys
+
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from starlette.responses import JSONResponse, Response
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-
-from fastapi import Request, HTTPException, status
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import Response, JSONResponse
 
 from shared.utils.jwt import decode_access_token
 
@@ -18,14 +18,37 @@ PUBLIC_PATHS = [
     "/api/v1/auth/refresh",
     "/api/v1/auth/otp/request",
     "/api/v1/auth/otp/verify",
+    "/api/v1/tourism",
+    "/api/v1/market",
+    "/api/v1/logistics",
+    "/api/v1/investment",
+    "/api/v1/guides",
+    "/api/v1/search",
+    "/api/v1/ai/chat",
+    "/api/v1/map",
     "/docs",
     "/openapi.json",
     "/redoc",
 ]
 
+PROTECTED_PATHS = [
+    "/api/v1/users",
+    "/api/v1/auth/me",
+    "/api/v1/auth/logout",
+    "/api/v1/payments",
+    "/api/v1/notifications",
+    "/api/v1/guides/bookings",
+]
+
+
+def _matches_prefix(path: str, prefixes: list[str]) -> bool:
+    return any(path == prefix or path.startswith(prefix + "/") for prefix in prefixes)
+
 
 def _is_public(path: str) -> bool:
-    return any(path.startswith(p) for p in PUBLIC_PATHS)
+    if _matches_prefix(path, PROTECTED_PATHS):
+        return False
+    return _matches_prefix(path, PUBLIC_PATHS)
 
 
 class JWTAuthMiddleware(BaseHTTPMiddleware):

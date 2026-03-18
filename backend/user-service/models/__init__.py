@@ -1,10 +1,9 @@
-"""User SQLAlchemy models — pure data entities."""
+"""User SQLAlchemy models - runtime entities used by user-service."""
 
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, String, Boolean, DateTime, Text, JSON, UniqueConstraint
-
+from sqlalchemy import Boolean, Column, DateTime, JSON, String, Text, UniqueConstraint
 
 from shared.core.database import Base
 
@@ -17,15 +16,20 @@ class User(Base):
     phone = Column(String(50), unique=True, nullable=True)
     full_name = Column(String(255), nullable=False)
     display_name = Column(String(255), nullable=True)
-    avatar_url = Column(String(255), nullable=True)
+    avatar_url = Column(String(1024), nullable=True)
+    city = Column(String(100), nullable=True)
+    organization = Column(String(255), nullable=True)
     password_hash = Column(String(255), nullable=True)
     role = Column(String(50), nullable=False, default="tourist")
     status = Column(String(50), nullable=False, default="active")
     language = Column(String(50), default="ar")
     verified_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc),
-                        onupdate=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
 
 
 class UserKYC(Base):

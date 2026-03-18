@@ -1,4 +1,4 @@
-"""User service SQLAlchemy models."""
+﻿"""User service SQLAlchemy models."""
 
 import uuid
 from datetime import datetime, timezone
@@ -18,6 +18,8 @@ class User(Base):
     full_name = Column(String(255), nullable=False)
     display_name = Column(String(255), nullable=True)
     avatar_url = Column(String(1024), nullable=True)
+    city = Column(String(100), nullable=True)
+    organization = Column(String(255), nullable=True)
     password_hash = Column(String(255), nullable=True)  # null for OTP-only users
     role = Column(String(50), nullable=False, default="tourist")
     status = Column(String(50), nullable=False, default="active")  # active | suspended | banned

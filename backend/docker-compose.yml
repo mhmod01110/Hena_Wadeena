@@ -1,16 +1,4 @@
-# Docker Compose for Hena Wadeena Backend
-# ========================================
-# Starts all microservices + MySQL + Redis
-# 
-# Usage:
-#   docker-compose up -d           # Start all services
-#   docker-compose logs -f gateway # Follow gateway logs
-#   docker-compose down            # Stop all
-
-
 services:
-    # ── Databases ────────────────────────────────────────────────────────────
-
   mysql:
     image: mysql:8.0
     environment:
@@ -25,7 +13,7 @@ services:
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
   redis:
     image: redis:7-alpine
@@ -36,8 +24,8 @@ services:
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-
-  # ── API Gateway ──────────────────────────────────────────────────────────
+      timeout: 3s
+      retries: 10
 
   gateway:
     build:
@@ -46,15 +34,46 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - AUTH_SERVICE_URL=http://auth-service:8001
-      - USER_SERVICE_URL=http://user-service:8002
+      AUTH_SERVICE_URL: http://auth-service:8001
+      USER_SERVICE_URL: http://user-service:8002
+      MAP_SERVICE_URL: http://map-service:8003
+      MARKET_SERVICE_URL: http://market-service:8004
+      GUIDE_SERVICE_URL: http://guide-service:8005
+      INVESTMENT_SERVICE_URL: http://investment-service:8006
+      PAYMENT_SERVICE_URL: http://payment-service:8007
+      NOTIFICATION_SERVICE_URL: http://notification-service:8008
+      SEARCH_SERVICE_URL: http://search-service:8009
+      AI_SERVICE_URL: http://ai-service:8010
+      ADMIN_SERVICE_URL: http://admin-service:8011
+      ANALYTICS_SERVICE_URL: http://analytics-service:8012
+      MEDIA_SERVICE_URL: http://media-service:8013
     depends_on:
       auth-service:
         condition: service_started
       user-service:
         condition: service_started
-
-  # ── Auth Service ─────────────────────────────────────────────────────────
+      map-service:
+        condition: service_started
+      market-service:
+        condition: service_started
+      guide-service:
+        condition: service_started
+      investment-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      notification-service:
+        condition: service_started
+      search-service:
+        condition: service_started
+      ai-service:
+        condition: service_started
+      admin-service:
+        condition: service_started
+      analytics-service:
+        condition: service_started
+      media-service:
+        condition: service_started
 
   auth-service:
     build:
@@ -63,16 +82,14 @@ services:
     ports:
       - "8001:8001"
     environment:
-      - AUTH_DATABASE_URL=mysql+aiomysql://root:root@mysql:3306/hena_auth
-      - REDIS_URL=redis://redis:6379/0
-      - USER_SERVICE_URL=http://user-service:8002
+      AUTH_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_auth
+      REDIS_URL: redis://redis:6379/0
+      USER_SERVICE_URL: http://user-service:8002
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
-
-  # ── User Service ─────────────────────────────────────────────────────────
 
   user-service:
     build:
@@ -81,8 +98,140 @@ services:
     ports:
       - "8002:8002"
     environment:
-      - USER_DATABASE_URL=mysql+aiomysql://root:root@mysql:3306/hena_users
-      - REDIS_URL=redis://redis:6379/0
+      USER_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_users
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  map-service:
+    build:
+      context: .
+      dockerfile: map-service/Dockerfile
+    ports:
+      - "8003:8003"
+    environment:
+      MAP_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_map
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  market-service:
+    build:
+      context: .
+      dockerfile: market-service/Dockerfile
+    ports:
+      - "8004:8004"
+    environment:
+      MARKET_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_market
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  guide-service:
+    build:
+      context: .
+      dockerfile: guide-service/Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      GUIDE_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_guide
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  investment-service:
+    build:
+      context: .
+      dockerfile: investment-service/Dockerfile
+    ports:
+      - "8006:8006"
+    environment:
+      INVESTMENT_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_investment
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: payment-service/Dockerfile
+    ports:
+      - "8007:8007"
+    environment:
+      PAYMENT_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_payment
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  notification-service:
+    build:
+      context: .
+      dockerfile: notification-service/Dockerfile
+    ports:
+      - "8008:8008"
+    environment:
+      NOTIFICATION_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_notification
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  search-service:
+    build:
+      context: .
+      dockerfile: search-service/Dockerfile
+    ports:
+      - "8009:8009"
+    environment:
+      SEARCH_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_search
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  ai-service:
+    build:
+      context: .
+      dockerfile: ai-service/Dockerfile
+    ports:
+      - "8010:8010"
+    environment:
+      AI_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_ai
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  admin-service:
+    build:
+      context: .
+      dockerfile: admin-service/Dockerfile
+    ports:
+      - "8011:8011"
+    environment:
+      ADMIN_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_admin
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: analytics-service/Dockerfile
+    ports:
+      - "8012:8012"
+    environment:
+      ANALYTICS_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_analytics
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  media-service:
+    build:
+      context: .
+      dockerfile: media-service/Dockerfile
+    ports:
+      - "8013:8013"
+    environment:
+      MEDIA_DATABASE_URL: mysql+aiomysql://root:root@mysql:3306/hena_media
     depends_on:
       mysql:
         condition: service_healthy

@@ -1,89 +1,128 @@
-# Hena Wadeena — Backend Microservices
+# Hena Wadeena Backend
 
-## Architecture
+## Overview
+This backend is a FastAPI microservices platform for tourism, market, investment, guide booking, logistics, payments, notifications, search, analytics, AI assistant, media, and admin operations.
 
-```
-backend/
-├── gateway/           → API Gateway (port 8000) — routes, JWT, CORS
-├── auth-service/      → Auth (port 8001) — login, register, JWT, OTP
-├── user-service/      → Users (port 8002) — profiles, KYC, preferences
-├── shared/            → Shared utilities (JWT, config, schemas)
-├── docker-compose.yml → Orchestration
-└── .env               → Configuration
-```
+Services follow clean architecture boundaries:
+- `controllers/`: HTTP transport and authorization gates
+- `services/`: business rules
+- `repositories/`: data access implementations
+- `models/`: SQLAlchemy entities
+- `schemas/`: request/response contracts
+- `core/`: settings, DB sessions, dependency wiring
 
-## Quick Start
+## Refactor Summary (Relational Normalization)
+The backend was refactored to remove generic JSON blob persistence (`data`, `details`) from normal relational tables.
 
-### Prerequisites
-- Python 3.11+
-- MySQL 8.0  
-- Redis 7
+Normalized services:
+- `admin-service`
+- `map-service`
+- `market-service`
+- `investment-service`
+- `guide-service`
+- `notification-service`
+- `search-service`
+- `ai-service`
+- `media-service`
+- `payment-service`
+- `analytics-service`
 
-### Option 1: Docker Compose (recommended)
+Examples of what changed:
+- AI chat: now stored as explicit columns (`conversation_id`, `user_id`, `message`, `response`, `intent`)
+- Payment transactions: explicit financial columns (`amount`, `balance_after`, `payment_method`, references)
+- Media assets: explicit metadata columns (`owner_id`, `mime_type`, `size_bytes`, `url`)
+- Admin moderation/audit/flags/announcements: explicit review, flag rollout, and audit detail fields
+- Analytics events: explicit event dimensions (`event_type`, `actor_role`, `payment_method`, `search_query`, `results_count`, etc.)
+
+API responses are built in the application layer from normalized fields; raw request payloads are no longer persisted as business blobs.
+
+## Role and Permission Model
+Implemented operational role boundaries:
+- `super_admin`: full control, flags, audit log, unsuspend
+- `admin`: user management, announcements, moderation review
+- `reviewer`: moderation queue review
+- `merchant`, `guide`, `investor`, `tourist`, `local_citizen`: domain-specific actions only
+
+Key examples:
+- Admin endpoints require `X-User-Role` in `{admin, super_admin}` or `{reviewer, admin, super_admin}` based on action
+- Payment payouts require `guide|merchant|admin|super_admin`
+- Search indexing requires `reviewer|admin|super_admin`
+
+## Services and Ports
+- Gateway: `8000`
+- Auth: `8001`
+- User: `8002`
+- Map: `8003`
+- Market: `8004`
+- Guide: `8005`
+- Investment: `8006`
+- Payment: `8007`
+- Notification: `8008`
+- Search: `8009`
+- AI: `8010`
+- Admin: `8011`
+- Analytics: `8012`
+- Media: `8013`
+
+## Databases
+Each service owns its own MySQL schema:
+- `hena_auth`, `hena_users`, `hena_map`, `hena_market`, `hena_guide`, `hena_investment`, `hena_payment`, `hena_notification`, `hena_search`, `hena_ai`, `hena_admin`, `hena_analytics`, `hena_media`
+
+Creation script: `backend/init-db.sql`
+
+## Setup and Run
 ```bash
 cd backend
-docker-compose up -d
+docker compose up -d --build
 ```
 
-### Option 2: Local Development
+Health checks:
+- `GET /health` on each service
+- Gateway proxies `/api/v1/*`
+
+## Migration Notes (Important)
+This refactor changes table structures in multiple services.
+
+If you have old local data created before this refactor, use one of these safe reset paths:
+
+1. Recreate containers + DB volumes (recommended locally)
 ```bash
-# 1. Create databases
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS hena_auth;"
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS hena_users;"
-
-# 2. Install dependencies
-cd auth-service && pip install -r requirements.txt && cd ..
-cd user-service && pip install -r requirements.txt && cd ..
-cd gateway && pip install -r requirements.txt && cd ..
-
-# 3. Start services (each in a separate terminal)
-cd user-service && uvicorn main:app --port 8002 --reload
-cd auth-service && uvicorn main:app --port 8001 --reload
-cd gateway && uvicorn main:app --port 8000 --reload
+cd backend
+docker compose down -v
+docker compose up -d --build
 ```
 
-## API Endpoints
+2. Drop and recreate affected schemas manually, then restart services.
 
-### Auth (`/api/v1/auth`)
-| Method | Path | Description |
-|--------|------|-------------|
-| POST | `/register` | Create new user |
-| POST | `/login` | Login with email/phone + password |
-| POST | `/refresh` | Refresh access token |
-| POST | `/logout` | Revoke refresh token |
-| POST | `/otp/request` | Request OTP code |
-| POST | `/otp/verify` | Verify OTP and get tokens |
+Without resetting schema state, services may fail due to old columns/tables not matching normalized models.
 
-### Users (`/api/v1/users`)
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/me` | Get current user profile |
-| PUT | `/me` | Update profile |
-| GET | `/me/preferences` | Get notification preferences |
-| PUT | `/me/preferences` | Update preferences |
-| POST | `/me/kyc` | Upload KYC document |
-| GET | `/me/kyc` | Get KYC status |
-| GET | `/{id}` | Get user by ID (admin) |
+## Seed Data
+Seed data is auto-created on first startup when service tables are empty.
 
-## Service Ports
-| Service | Port |
-|---------|------|
-| Gateway | 8000 |
-| Auth | 8001 |
-| User | 8002 |
-| Map | 8003 |
-| Market | 8004 |
-| Guide | 8005 |
-| Investment | 8006 |
-| Payment | 8007 |
-| Notification | 8008 |
-| Search | 8009 |
-| AI | 8010 |
+Seed coverage includes:
+- multiple admins and reviewers
+- normal users across tourist/investor/guide/merchant/local citizen
+- realistic domain records for listings, opportunities, guide bookings, wallet transactions, media assets, moderation queue, and analytics events
 
-## Tech Stack
-- **FastAPI** (Python) — async API framework
-- **SQLAlchemy** (async) — ORM
-- **MySQL** — primary database  
-- **Redis** — caching, JWT blacklist
-- **bcrypt** — password hashing
-- **python-jose** — JWT tokens
+## Demo Credentials
+Default seeded password for all users:
+- `Pass@12345`
+
+Admin accounts:
+- `admin@hena.local`
+- `ops.admin@hena.local`
+
+Reviewer accounts:
+- `reviewer@hena.local`
+- `senior.reviewer@hena.local`
+
+Other demo accounts:
+- `guide@hena.local`
+- `tourist@hena.local`
+- `investor@hena.local`
+- `merchant@hena.local`
+- `citizen@hena.local`
+
+## Notes
+- User preferences in `user-service` still use JSON arrays for `preferred_areas` and `interests`; these are bounded preference lists, not generic business-object blobs.
+- Frontend should call backend through gateway (`http://localhost:8000`) and include auth headers for protected routes.

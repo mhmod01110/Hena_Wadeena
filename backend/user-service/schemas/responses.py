@@ -1,6 +1,6 @@
-"""User response schemas."""
+﻿"""User response schemas."""
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional
 from datetime import datetime
 
@@ -12,6 +12,8 @@ class UserProfile(BaseModel):
     full_name: str
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    city: Optional[str] = None
+    organization: Optional[str] = None
     role: str
     status: str
     language: str
@@ -26,8 +28,8 @@ class PreferenceResponse(BaseModel):
     notify_push: bool = True
     notify_email: bool = True
     notify_sms: bool = False
-    preferred_areas: list[str] = []
-    interests: list[str] = []
+    preferred_areas: list[str] = Field(default_factory=list)
+    interests: list[str] = Field(default_factory=list)
 
 
 class KYCStatusResponse(BaseModel):
@@ -48,6 +50,11 @@ class InternalUserResponse(BaseModel):
     email: Optional[str] = None
     phone: Optional[str] = None
     full_name: str
+    display_name: Optional[str] = None
+    avatar_url: Optional[str] = None
+    city: Optional[str] = None
+    organization: Optional[str] = None
+    language: str = "ar"
     password_hash: Optional[str] = None
     role: str
     status: str
