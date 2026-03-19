@@ -59,6 +59,10 @@ async def health():
 
 
 _STRIP_PREFIXES = {"/api/v1/auth", "/api/v1/users"}
+_REWRITE_PREFIXES = {
+    # Frontend keeps calling /api/v1/ai/* while ai-service exposes /api/v1/chat/*.
+    "/api/v1/ai": "/api/v1",
+}
 
 
 def _resolve(path: str):
@@ -69,6 +73,11 @@ def _resolve(path: str):
         # auth-service and user-service routers are mounted without /api/v1 prefixes.
         if prefix in _STRIP_PREFIXES:
             return url, path[len(prefix):] or "/"
+
+        # Keep the public gateway path stable while rewriting upstream AI paths.
+        if prefix in _REWRITE_PREFIXES:
+            rewritten = f"{_REWRITE_PREFIXES[prefix]}{path[len(prefix):]}"
+            return url, rewritten or _REWRITE_PREFIXES[prefix]
 
         # Other upgraded services expose full /api/v1/... routes.
         return url, path

@@ -1342,43 +1342,116 @@ export const searchAPI = {
   },
 };
 
-export interface ChatResponse {
-  conversation_id: string;
-  user_id: string;
-  message: string;
-  response: string;
-  intent: string;
+export interface AIChatSource {
+  chunk_id: string;
+  doc_id: string;
+  section_title?: string | null;
+  relevance_score: number;
+  text_snippet: string;
+}
+
+export interface AIChatSessionCreateResponse {
+  session_id: string;
+  user_id: string | null;
   created_at: string;
+  language_preference: string;
+  message_count: number;
+  is_active: boolean;
+  welcome_message: string;
+}
+
+export interface AIChatMessageResponse {
+  message_id: string;
+  session_id: string;
+  role: "assistant" | "user";
+  content: string;
+  language: string;
+  created_at: string;
+  sources: AIChatSource[];
+  domain_relevant: boolean;
+  latency_ms?: number | null;
+}
+
+export interface AIChatSessionMessage {
+  message_id: string;
+  role: "assistant" | "user";
+  content: string;
+  language: string;
+  created_at: string;
+  sources: AIChatSource[];
+}
+
+export interface AIChatSessionViewResponse {
+  session_id: string;
+  user_id: string | null;
+  created_at: string;
+  updated_at: string;
+  is_active: boolean;
+  message_count: number;
+  messages: AIChatSessionMessage[];
+  pagination: {
+    page: number;
+    per_page: number;
+    total_messages: number;
+    total_pages: number;
+  };
+}
+
+export interface AIChatSessionCloseResponse {
+  session_id: string;
+  closed: boolean;
+  message_count: number;
+  closed_at: string;
 }
 
 export const aiAPI = {
-  chat: async (message: string, conversationId?: string) => {
-    const payload = await apiFetch<ApiEnvelope<ChatResponse>>("/ai/chat", {
+  createSession: async (body?: {
+    user_id?: string | null;
+    language_preference?: "auto" | "ar" | "en";
+    metadata?: Record<string, unknown>;
+  }) => {
+    const payload = await apiFetch<ApiEnvelope<AIChatSessionCreateResponse>>("/ai/chat/sessions", {
       method: "POST",
-      body: JSON.stringify({ message, conversation_id: conversationId }),
+      body: JSON.stringify(body ?? {}),
     });
-    return toEnvelope<ChatResponse>(payload);
+    return toEnvelope<AIChatSessionCreateResponse>(payload);
   },
 
-  history: async (conversationId?: string, limit = 30) => {
-    const payload = await apiFetch<ApiEnvelope<ChatResponse[]>>(
-      withQuery("/ai/history", {
-        conversation_id: conversationId,
-        limit,
-      })
-    );
-    return toEnvelope(payload);
-  },
-
-  recommendations: async (category: string, location?: string, context?: string) => {
-    const payload = await apiFetch<ApiEnvelope<Array<{ title: string; reason: string; category: string; location?: string }>>>(
-      "/ai/recommendations",
+  sendMessage: async (
+    sessionId: string,
+    body: {
+      content: string;
+      language?: "auto" | "ar" | "en";
+    }
+  ) => {
+    const payload = await apiFetch<ApiEnvelope<AIChatMessageResponse>>(
+      `/ai/chat/sessions/${encodeURIComponent(sessionId)}/messages`,
       {
         method: "POST",
-        body: JSON.stringify({ category, location, context }),
+        body: JSON.stringify(body),
       }
     );
-    return toEnvelope(payload);
+    return toEnvelope<AIChatMessageResponse>(payload);
+  },
+
+  getSession: async (sessionId: string, page = 1, perPage = 30) => {
+    const payload = await apiFetch<ApiEnvelope<AIChatSessionViewResponse>>(
+      withQuery(`/ai/chat/sessions/${encodeURIComponent(sessionId)}`, {
+        page,
+        per_page: perPage,
+      })
+    );
+    return toEnvelope<AIChatSessionViewResponse>(payload);
+  },
+
+  closeSession: async (sessionId: string) => {
+    const payload = await apiFetch<ApiEnvelope<AIChatSessionCloseResponse>>(
+      `/ai/chat/sessions/${encodeURIComponent(sessionId)}`,
+      {
+        method: "DELETE",
+      }
+    );
+    return toEnvelope<AIChatSessionCloseResponse>(payload);
   },
 };
 
