@@ -1,26 +1,36 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Layout } from "@/components/layout/Layout";
-import { useNavigate, useParams } from "react-router-dom";
-import { ArrowRight, Calendar, Users, Star, MapPin, Check, Languages } from "lucide-react";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { ArrowRight, Calendar, Users, Star, MapPin, Check, Languages, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { guidesAPI, getCurrentUser, type GuideProfile } from "@/services/api";
+import { guidesAPI, getCurrentUser, type GuideProfile, type TourPackage } from "@/services/api";
 import { toast } from "sonner";
 
 const GuideBookingPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
 
   const [step, setStep] = useState(1);
   const [loadingGuide, setLoadingGuide] = useState(true);
+  const [loadingPackages, setLoadingPackages] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [guide, setGuide] = useState<GuideProfile | null>(null);
+  const [packages, setPackages] = useState<TourPackage[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState<string>("custom");
+
+  const preferredPackageId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("packageId");
+  }, [location.search]);
 
   const [formData, setFormData] = useState({
     date: "",
+    startTime: "09:00",
     days: 1,
     groupSize: 1,
     name: "",
@@ -36,20 +46,48 @@ const GuideBookingPage = () => {
       return;
     }
 
-    guidesAPI
-      .getGuide(gid)
-      .then((res) => setGuide(res.data))
+    Promise.all([guidesAPI.getGuide(gid), guidesAPI.getPackages(gid)])
+      .then(([guideRes, packagesRes]) => {
+        setGuide(guideRes.data);
+        const activePackages = packagesRes.data.filter((pkg) => pkg.status === "active");
+        setPackages(activePackages);
+        if (preferredPackageId && activePackages.some((pkg) => pkg.id === preferredPackageId)) {
+          setSelectedPackageId(preferredPackageId);
+        }
+      })
       .catch((err: any) => {
-        toast.error(err.message || "Failed to load guide profile");
+        toast.error(err.message || "Failed to load guide data");
         navigate("/guides");
       })
-      .finally(() => setLoadingGuide(false));
-  }, [id, navigate]);
+      .finally(() => {
+        setLoadingGuide(false);
+        setLoadingPackages(false);
+      });
+  }, [id, navigate, preferredPackageId]);
+
+  const selectedPackage = useMemo(
+    () => packages.find((pkg) => pkg.id === selectedPackageId),
+    [packages, selectedPackageId]
+  );
+
+  const bookingDurationHours = useMemo(
+    () => (selectedPackage ? selectedPackage.duration_hrs : formData.days * 8),
+    [selectedPackage, formData.days]
+  );
+
+  useEffect(() => {
+    if (!selectedPackage) return;
+    if (formData.groupSize <= selectedPackage.max_people) return;
+    setFormData((prev) => ({ ...prev, groupSize: selectedPackage.max_people }));
+  }, [selectedPackage, formData.groupSize]);
 
   const totalPrice = useMemo(() => {
+    if (selectedPackage) {
+      return selectedPackage.price * formData.groupSize;
+    }
     const base = guide?.base_price || 0;
     return base * formData.days * formData.groupSize;
-  }, [guide?.base_price, formData.days, formData.groupSize]);
+  }, [guide?.base_price, selectedPackage, formData.days, formData.groupSize]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,12 +112,16 @@ const GuideBookingPage = () => {
     setSubmitting(true);
     try {
       await guidesAPI.createBooking({
+        package_id: selectedPackage ? selectedPackage.id : undefined,
         guide_id: guide.id,
         booking_date: formData.date,
-        start_time: "09:00",
+        start_time: formData.startTime,
+        duration_hrs: selectedPackage ? undefined : bookingDurationHours,
         people_count: formData.groupSize,
         notes: [
-          `Requested days: ${formData.days}`,
+          selectedPackage
+            ? `Package: ${selectedPackage.title_ar} (${selectedPackage.duration_hrs} hrs)`
+            : `Requested days: ${formData.days}`,
           `Booker name: ${formData.name}`,
           `Phone: ${formData.phone}`,
           formData.email ? `Email: ${formData.email}` : "",
@@ -98,7 +140,7 @@ const GuideBookingPage = () => {
     }
   };
 
-  if (loadingGuide) {
+  if (loadingGuide || loadingPackages) {
     return (
       <Layout>
         <section className="py-10">
@@ -118,7 +160,7 @@ const GuideBookingPage = () => {
     <Layout>
       <section className="py-8 md:py-12">
         <div className="container px-4 max-w-3xl">
-          <Button variant="ghost" onClick={() => (step === 1 ? navigate("/tourism") : setStep(1))} className="mb-6">
+          <Button variant="ghost" onClick={() => (step === 1 ? navigate("/guides") : setStep(1))} className="mb-6">
             <ArrowRight className="h-4 w-4 mr-2" />
             {step === 1 ? "Back to Guides" : "Back to Step 1"}
           </Button>
@@ -172,6 +214,11 @@ const GuideBookingPage = () => {
                     <span className="text-muted-foreground">Price per day</span>
                     <span className="text-xl font-bold text-primary">{guide.base_price} EGP</span>
                   </div>
+                  {selectedPackage && (
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      Selected package: <span className="font-medium text-foreground">{selectedPackage.title_ar}</span>
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -184,6 +231,47 @@ const GuideBookingPage = () => {
                 <form onSubmit={handleSubmit} className="space-y-6">
                   {step === 1 ? (
                     <>
+                      <div className="space-y-3">
+                        <Label>Tour Package (Optional)</Label>
+                        <div className="grid grid-cols-1 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPackageId("custom")}
+                            className={`rounded-lg border p-3 text-left transition-colors ${
+                              selectedPackageId === "custom" ? "border-primary bg-primary/5" : "border-border"
+                            }`}
+                          >
+                            <div className="font-medium">Custom itinerary</div>
+                            <div className="text-sm text-muted-foreground">Use guide base price and your own duration.</div>
+                          </button>
+                          {packages.map((pkg) => (
+                            <button
+                              key={pkg.id}
+                              type="button"
+                              onClick={() => setSelectedPackageId(pkg.id)}
+                              className={`rounded-lg border p-3 text-left transition-colors ${
+                                selectedPackageId === pkg.id ? "border-primary bg-primary/5" : "border-border"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="font-medium">{pkg.title_ar}</div>
+                                <div className="text-sm font-semibold text-primary">{pkg.price} EGP/person</div>
+                              </div>
+                              <div className="mt-1 flex items-center gap-4 text-sm text-muted-foreground">
+                                <span className="inline-flex items-center gap-1">
+                                  <Clock className="h-4 w-4" />
+                                  {pkg.duration_hrs} hrs
+                                </span>
+                                <span className="inline-flex items-center gap-1">
+                                  <Users className="h-4 w-4" />
+                                  max {pkg.max_people}
+                                </span>
+                              </div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
                       <div className="space-y-2">
                         <Label htmlFor="date">Trip Start Date</Label>
                         <div className="relative">
@@ -199,23 +287,80 @@ const GuideBookingPage = () => {
                         </div>
                       </div>
 
+                      <div className="space-y-2">
+                        <Label htmlFor="startTime">Start Time</Label>
+                        <Input
+                          id="startTime"
+                          type="time"
+                          value={formData.startTime}
+                          onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
+                          required
+                        />
+                      </div>
+
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label>Number of Days</Label>
-                          <div className="flex items-center gap-4">
-                            <Button type="button" variant="outline" size="icon" onClick={() => setFormData({ ...formData, days: Math.max(1, formData.days - 1) })}>-</Button>
-                            <span className="text-xl font-bold w-8 text-center">{formData.days}</span>
-                            <Button type="button" variant="outline" size="icon" onClick={() => setFormData({ ...formData, days: formData.days + 1 })}>+</Button>
+                        {selectedPackageId === "custom" ? (
+                          <div className="space-y-2">
+                            <Label>Number of Days</Label>
+                            <div className="flex items-center gap-4">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setFormData({ ...formData, days: Math.max(1, formData.days - 1) })}
+                              >
+                                -
+                              </Button>
+                              <span className="text-xl font-bold w-8 text-center">{formData.days}</span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() => setFormData({ ...formData, days: formData.days + 1 })}
+                              >
+                                +
+                              </Button>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Label>Package Duration</Label>
+                            <div className="rounded-md border border-border p-2 text-sm text-muted-foreground">
+                              {selectedPackage?.duration_hrs || 0} hrs
+                            </div>
+                          </div>
+                        )}
 
                         <div className="space-y-2">
                           <Label>Group Size</Label>
                           <div className="flex items-center gap-4">
-                            <Button type="button" variant="outline" size="icon" onClick={() => setFormData({ ...formData, groupSize: Math.max(1, formData.groupSize - 1) })}>-</Button>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => setFormData({ ...formData, groupSize: Math.max(1, formData.groupSize - 1) })}
+                            >
+                              -
+                            </Button>
                             <span className="text-xl font-bold w-8 text-center">{formData.groupSize}</span>
-                            <Button type="button" variant="outline" size="icon" onClick={() => setFormData({ ...formData, groupSize: formData.groupSize + 1 })}>+</Button>
-                          </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="icon"
+                                onClick={() =>
+                                  setFormData({
+                                    ...formData,
+                                    groupSize:
+                                      selectedPackage && formData.groupSize >= selectedPackage.max_people
+                                        ? formData.groupSize
+                                        : formData.groupSize + 1,
+                                  })
+                                }
+                                disabled={Boolean(selectedPackage && formData.groupSize >= selectedPackage.max_people)}
+                              >
+                                +
+                              </Button>
+                            </div>
                         </div>
                       </div>
 
@@ -260,8 +405,10 @@ const GuideBookingPage = () => {
                       <div className="bg-muted/50 rounded-lg p-4 space-y-2">
                         <h4 className="font-semibold mb-3">Booking Summary</h4>
                         <div className="flex justify-between text-sm"><span className="text-muted-foreground">Guide</span><span>{guide.name}</span></div>
+                        <div className="flex justify-between text-sm"><span className="text-muted-foreground">Type</span><span>{selectedPackage ? selectedPackage.title_ar : "Custom itinerary"}</span></div>
                         <div className="flex justify-between text-sm"><span className="text-muted-foreground">Date</span><span>{formData.date}</span></div>
-                        <div className="flex justify-between text-sm"><span className="text-muted-foreground">Duration</span><span>{formData.days} days</span></div>
+                        <div className="flex justify-between text-sm"><span className="text-muted-foreground">Time</span><span>{formData.startTime}</span></div>
+                        <div className="flex justify-between text-sm"><span className="text-muted-foreground">Duration</span><span>{bookingDurationHours} hrs</span></div>
                         <div className="flex justify-between text-sm"><span className="text-muted-foreground">People</span><span>{formData.groupSize}</span></div>
                         <div className="flex justify-between font-semibold pt-2 border-t border-border"><span>Total</span><span className="text-primary">{totalPrice} EGP</span></div>
                       </div>

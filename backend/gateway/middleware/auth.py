@@ -59,20 +59,36 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         self.secret_key = secret_key
         self.algorithm = algorithm
 
-    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if _is_public(request.url.path):
-            return await call_next(request)
-
+    @staticmethod
+    def _extract_bearer_token(request: Request) -> str | None:
         auth = request.headers.get("Authorization")
         if not auth or not auth.startswith("Bearer "):
-            return JSONResponse({"detail": "Missing Authorization header"}, status_code=401)
+            return None
+        return auth.split(" ", 1)[1]
 
-        payload = decode_access_token(auth.split(" ", 1)[1], self.secret_key, self.algorithm)
-        if not payload:
-            return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
-
+    @staticmethod
+    def _attach_identity(request: Request, payload: dict) -> None:
         request.state.user_id = payload["sub"]
         request.state.user_role = payload["role"]
         request.state.token_jti = payload["jti"]
+
+    async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if _is_public(request.url.path):
+            token = self._extract_bearer_token(request)
+            if token:
+                payload = decode_access_token(token, self.secret_key, self.algorithm)
+                if payload:
+                    self._attach_identity(request, payload)
+            return await call_next(request)
+
+        token = self._extract_bearer_token(request)
+        if not token:
+            return JSONResponse({"detail": "Missing Authorization header"}, status_code=401)
+
+        payload = decode_access_token(token, self.secret_key, self.algorithm)
+        if not payload:
+            return JSONResponse({"detail": "Invalid or expired token"}, status_code=401)
+
+        self._attach_identity(request, payload)
 
         return await call_next(request)

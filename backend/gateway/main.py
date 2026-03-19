@@ -98,6 +98,12 @@ async def proxy(request: Request, path: str):
 
     headers = dict(request.headers)
     headers.pop("host", None)
+    headers.pop("x-user-id", None)
+    headers.pop("X-User-Id", None)
+    headers.pop("x-user-role", None)
+    headers.pop("X-User-Role", None)
+    headers.pop("x-token-jti", None)
+    headers.pop("X-Token-Jti", None)
     req_id = str(uuid.uuid4())
     headers["X-Request-Id"] = req_id
 

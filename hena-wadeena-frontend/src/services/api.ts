@@ -904,11 +904,52 @@ interface GuideProfileBackend {
   bio: string;
   languages: string[];
   specialties: string[];
+  operating_cities?: string[];
   base_price: number;
   active: boolean;
   verified: boolean;
+  rating_avg: number;
+  rating_count: number;
+  total_bookings: number;
+  total_earnings?: number;
   created_at: string;
 }
+
+interface GuidePackageBackend {
+  id: string;
+  guide_profile_id: string;
+  title: string;
+  description: string;
+  duration_hrs: number;
+  max_people: number;
+  price: number;
+  category?: string | null;
+  includes: string[];
+  images: string[];
+  active: boolean;
+  created_at: string;
+}
+
+interface GuideReviewBackend {
+  id: string;
+  guide_profile_id: string;
+  booking_id: string;
+  tourist_id: string;
+  tourist_name: string;
+  rating: number;
+  comment: string;
+  guide_reply?: string | null;
+  created_at: string;
+}
+
+export type BookingStatus =
+  | "pending"
+  | "confirmed"
+  | "in_progress"
+  | "completed"
+  | "cancelled_tourist"
+  | "cancelled_guide"
+  | "no_show";
 
 export interface GuideProfile {
   id: string;
@@ -917,11 +958,14 @@ export interface GuideProfile {
   bio_ar: string;
   languages: string[];
   specialties: string[];
+  operating_cities: string[];
   license_number: string;
   license_verified: boolean;
   base_price: number;
   rating_avg: number;
   rating_count: number;
+  total_bookings: number;
+  total_earnings: number;
   active: boolean;
   image: string;
 }
@@ -934,6 +978,7 @@ export interface TourPackage {
   duration_hrs: number;
   max_people: number;
   price: number;
+  category?: string | null;
   includes: string[];
   images: string[];
   status: string;
@@ -943,28 +988,49 @@ interface BookingBackend {
   id: string;
   guide_profile_id: string;
   guide_user_id: string;
+  guide_display_name?: string;
   tourist_id: string;
+  package_id?: string | null;
+  package_title?: string | null;
   booking_date: string;
   start_time: string;
+  duration_hrs?: number;
   people_count: number;
   total_price: number;
+  payment_status?: string;
   notes?: string;
-  status: string;
+  status: BookingStatus;
+  cancellation_actor?: string | null;
+  cancelled_reason?: string | null;
+  cancellation_refund_percent?: number | null;
+  guide_penalty?: boolean;
+  cancelled_at?: string | null;
+  review_submitted?: boolean;
   created_at: string;
 }
 
 export interface Booking {
   id: string;
-  package_id: string;
+  package_id?: string;
   guide_id: string;
+  guide_user_id: string;
   guide_name: string;
   tourist_id: string;
   package_title: string;
   booking_date: string;
   start_time: string;
+  duration_hrs: number;
   people_count: number;
   total_price: number;
-  status: string;
+  payment_status: string;
+  status: BookingStatus;
+  notes?: string;
+  cancellation_actor?: string | null;
+  cancelled_reason?: string | null;
+  cancellation_refund_percent?: number | null;
+  guide_penalty: boolean;
+  cancelled_at?: string | null;
+  review_submitted: boolean;
   created_at: string;
 }
 
@@ -979,34 +1045,87 @@ export interface Review {
   created_at: string;
 }
 
+export interface GuideAvailabilitySlot {
+  booking_id: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: BookingStatus;
+}
+
+export interface GuideAvailability {
+  guide_profile_id: string;
+  month: number;
+  year: number;
+  blocked_slots: GuideAvailabilitySlot[];
+}
+
 const toGuideProfile = (g: GuideProfileBackend): GuideProfile => ({
   id: g.id,
   user_id: g.user_id,
   name: g.display_name,
   bio_ar: g.bio,
-  languages: g.languages,
-  specialties: g.specialties,
-  license_number: `GUIDE-${g.user_id.slice(0, 6).toUpperCase()}`,
+  languages: g.languages || [],
+  specialties: g.specialties || [],
+  operating_cities: g.operating_cities || [],
+  license_number: `GUIDE-${(g.user_id || "UNKNOWN").slice(0, 6).toUpperCase()}`,
   license_verified: g.verified,
   base_price: g.base_price,
-  rating_avg: 4.6,
-  rating_count: 32,
+  rating_avg: Number(g.rating_avg || 0),
+  rating_count: Number(g.rating_count || 0),
+  total_bookings: Number(g.total_bookings || 0),
+  total_earnings: Number(g.total_earnings || 0),
   active: g.active,
-  image: fallbackImage(`guide-${g.user_id}`, "avatar"),
+  image: fallbackImage(`guide-${g.user_id || g.id}`, "avatar"),
+});
+
+const toPackage = (p: GuidePackageBackend): TourPackage => ({
+  id: p.id,
+  guide_id: p.guide_profile_id,
+  title_ar: p.title,
+  description: p.description,
+  duration_hrs: Number(p.duration_hrs || 0),
+  max_people: Number(p.max_people || 1),
+  price: Number(p.price || 0),
+  category: p.category || null,
+  includes: p.includes || [],
+  images: p.images?.length ? p.images : [fallbackImage(`guide-package-${p.id}`)],
+  status: p.active ? "active" : "inactive",
+});
+
+const toReview = (r: GuideReviewBackend): Review => ({
+  id: r.id,
+  guide_id: r.guide_profile_id,
+  tourist_id: r.tourist_id,
+  tourist_name: r.tourist_name,
+  rating: Number(r.rating || 0),
+  comment: r.comment,
+  guide_reply: r.guide_reply || undefined,
+  created_at: r.created_at,
 });
 
 const toBooking = (b: BookingBackend): Booking => ({
   id: b.id,
-  package_id: b.guide_profile_id,
+  package_id: b.package_id || undefined,
   guide_id: b.guide_profile_id,
-  guide_name: `Guide ${b.guide_user_id.slice(0, 6)}`,
+  guide_user_id: b.guide_user_id,
+  guide_name: b.guide_display_name || `Guide ${(b.guide_user_id || "").slice(0, 6)}`,
   tourist_id: b.tourist_id,
-  package_title: "Guided Tour",
+  package_title: b.package_title || "Guided Tour",
   booking_date: b.booking_date,
   start_time: b.start_time,
+  duration_hrs: Number(b.duration_hrs || 8),
   people_count: b.people_count,
   total_price: b.total_price,
+  payment_status: b.payment_status || "unpaid",
   status: b.status,
+  notes: b.notes,
+  cancellation_actor: b.cancellation_actor || null,
+  cancelled_reason: b.cancelled_reason || null,
+  cancellation_refund_percent: b.cancellation_refund_percent ?? null,
+  guide_penalty: Boolean(b.guide_penalty),
+  cancelled_at: b.cancelled_at || null,
+  review_submitted: Boolean(b.review_submitted),
   created_at: b.created_at,
 });
 
@@ -1021,31 +1140,39 @@ export const guidesAPI = {
     return { success: true, data: toGuideProfile(toEnvelope<GuideProfileBackend>(payload).data) };
   },
 
-  getPackages: async (guideId: string) => {
-    const guide = (await guidesAPI.getGuide(guideId)).data;
-    return {
-      success: true,
-      data: [
-        {
-          id: `pkg-${guide.id}`,
-          guide_id: guide.id,
-          title_ar: `Tour with ${guide.name}`,
-          description: guide.bio_ar,
-          duration_hrs: 8,
-          max_people: 8,
-          price: guide.base_price,
-          includes: ["Guide", "Planning", "Local tips"],
-          images: [guide.image],
-          status: "active",
-        },
-      ] as TourPackage[],
-    };
+  getPackages: async (guideId: string, includeInactive = false) => {
+    const payload = await apiFetch<ApiEnvelope<GuidePackageBackend[]>>(
+      withQuery(`/guides/profiles/${guideId}/packages`, { include_inactive: includeInactive })
+    );
+    return { success: true, data: toEnvelope<GuidePackageBackend[]>(payload).data.map(toPackage) };
   },
 
-  getReviews: async (_guideId: string) => ({ success: true, data: [] as Review[] }),
+  getReviews: async (guideId: string) => {
+    const payload = await apiFetch<ApiEnvelope<GuideReviewBackend[]>>(`/guides/profiles/${guideId}/reviews`);
+    return { success: true, data: toEnvelope<GuideReviewBackend[]>(payload).data.map(toReview) };
+  },
 
-  createReview: async (_guideId: string, _body: { rating: number; comment: string }) => {
-    throw new Error("Reviews endpoint is not available in upgraded guide-service yet.");
+  getAvailability: async (guideId: string, month: number, year: number) => {
+    const payload = await apiFetch<ApiEnvelope<GuideAvailability>>(
+      withQuery(`/guides/profiles/${guideId}/availability`, { month, year })
+    );
+    return { success: true, data: toEnvelope<GuideAvailability>(payload).data };
+  },
+
+  createReview: async (bookingId: string, body: { rating: number; comment: string }) => {
+    const payload = await apiFetch<ApiEnvelope<GuideReviewBackend>>(`/bookings/${bookingId}/review`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
+    return { success: true, data: toReview(toEnvelope<GuideReviewBackend>(payload).data) };
+  },
+
+  replyReview: async (reviewId: string, reply: string) => {
+    const payload = await apiFetch<ApiEnvelope<GuideReviewBackend>>(`/guides/reviews/${reviewId}/reply`, {
+      method: "PATCH",
+      body: JSON.stringify({ reply }),
+    });
+    return { success: true, data: toReview(toEnvelope<GuideReviewBackend>(payload).data) };
   },
 
   createProfile: async (body: {
@@ -1053,6 +1180,7 @@ export const guidesAPI = {
     bio: string;
     languages?: string[];
     specialties?: string[];
+    operating_cities?: string[];
     base_price: number;
   }) => {
     const payload = await apiFetch<ApiEnvelope<GuideProfileBackend>>("/guides/profiles", {
@@ -1061,6 +1189,7 @@ export const guidesAPI = {
         ...body,
         languages: body.languages || [],
         specialties: body.specialties || [],
+        operating_cities: body.operating_cities || [],
       }),
     });
     return { success: true, data: toGuideProfile(toEnvelope<GuideProfileBackend>(payload).data) };
@@ -1071,6 +1200,7 @@ export const guidesAPI = {
     guide_id: string;
     booking_date: string;
     start_time?: string;
+    duration_hrs?: number;
     people_count?: number;
     notes?: string;
   }) => {
@@ -1078,8 +1208,10 @@ export const guidesAPI = {
       method: "POST",
       body: JSON.stringify({
         guide_profile_id: body.guide_id,
+        package_id: body.package_id,
         booking_date: body.booking_date,
         start_time: body.start_time || "09:00",
+        duration_hrs: body.duration_hrs,
         people_count: body.people_count || 1,
         notes: body.notes,
       }),
@@ -1088,15 +1220,53 @@ export const guidesAPI = {
     return { success: true, message: "Booking created", data: toBooking(toEnvelope<BookingBackend>(payload).data) };
   },
 
-  getMyBookings: async () => {
-    const payload = await apiFetch<ApiEnvelope<BookingBackend[]>>(withQuery("/bookings", { mine_only: true }));
+  getMyBookings: async (status?: BookingStatus) => {
+    const payload = await apiFetch<ApiEnvelope<BookingBackend[]>>(withQuery("/guides/bookings/my", { status }));
     return { success: true, data: toEnvelope<BookingBackend[]>(payload).data.map(toBooking) };
   },
 
-  updateBookingStatus: async (id: string, status: "pending" | "confirmed" | "completed" | "cancelled") => {
+  listBookings: async (opts?: { mine_only?: boolean; status?: BookingStatus }) => {
+    const payload = await apiFetch<ApiEnvelope<BookingBackend[]>>(
+      withQuery("/bookings", {
+        mine_only: opts?.mine_only ?? true,
+        status: opts?.status,
+      })
+    );
+    return { success: true, data: toEnvelope<BookingBackend[]>(payload).data.map(toBooking) };
+  },
+
+  updateBookingStatus: async (id: string, status: BookingStatus | "cancelled", reason?: string) => {
     const payload = await apiFetch<ApiEnvelope<BookingBackend>>(`/bookings/${id}/status`, {
       method: "PATCH",
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, reason }),
+    });
+    return { success: true, data: toBooking(toEnvelope<BookingBackend>(payload).data) };
+  },
+
+  confirmBooking: async (id: string) => {
+    const payload = await apiFetch<ApiEnvelope<BookingBackend>>(`/guides/bookings/${id}/confirm`, { method: "PATCH" });
+    return { success: true, data: toBooking(toEnvelope<BookingBackend>(payload).data) };
+  },
+
+  startBooking: async (id: string) => {
+    const payload = await apiFetch<ApiEnvelope<BookingBackend>>(`/guides/bookings/${id}/start`, { method: "PATCH" });
+    return { success: true, data: toBooking(toEnvelope<BookingBackend>(payload).data) };
+  },
+
+  completeBooking: async (id: string) => {
+    const payload = await apiFetch<ApiEnvelope<BookingBackend>>(`/guides/bookings/${id}/complete`, { method: "PATCH" });
+    return { success: true, data: toBooking(toEnvelope<BookingBackend>(payload).data) };
+  },
+
+  markNoShow: async (id: string) => {
+    const payload = await apiFetch<ApiEnvelope<BookingBackend>>(`/guides/bookings/${id}/no-show`, { method: "PATCH" });
+    return { success: true, data: toBooking(toEnvelope<BookingBackend>(payload).data) };
+  },
+
+  cancelBooking: async (id: string, reason?: string) => {
+    const payload = await apiFetch<ApiEnvelope<BookingBackend>>(`/guides/bookings/${id}/cancel`, {
+      method: "PATCH",
+      body: JSON.stringify({ reason }),
     });
     return { success: true, data: toBooking(toEnvelope<BookingBackend>(payload).data) };
   },

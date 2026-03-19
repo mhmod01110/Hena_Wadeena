@@ -29,7 +29,10 @@ const GuideProfilePage = () => {
           upToPeople: (count: number) => `حتى ${count} أفراد`,
           currencyPerPerson: "جنيه/فرد",
           bookNow: "احجز الآن",
+          bookCustom: "احجز رحلة مخصصة",
           reviews: "التقييمات",
+          noPackages: "لا توجد باقات متاحة حاليا.",
+          noReviews: "لا توجد تقييمات بعد.",
           guideReply: "رد المرشد:",
         }
       : {
@@ -42,7 +45,10 @@ const GuideProfilePage = () => {
           upToPeople: (count: number) => `Up to ${count} people`,
           currencyPerPerson: "EGP/person",
           bookNow: "Book Now",
+          bookCustom: "Book Custom Tour",
           reviews: "Reviews",
+          noPackages: "No active packages yet.",
+          noReviews: "No reviews yet.",
           guideReply: "Guide reply:",
         };
 
@@ -100,6 +106,9 @@ const GuideProfilePage = () => {
                   <p className="text-lg font-bold text-primary mt-2">
                     {guide.base_price} {copy.pricePerDay}
                   </p>
+                  <Button className="mt-3" size="sm" onClick={() => navigate(`/tourism/guide-booking/${guide.id}`)}>
+                    {copy.bookCustom}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -136,13 +145,18 @@ const GuideProfilePage = () => {
                         <span className="text-2xl font-bold text-primary">
                           {pkg.price} <span className="text-sm font-normal">{copy.currencyPerPerson}</span>
                         </span>
-                        <Button onClick={() => navigate(`/tourism/guide-booking/${guide.id}`)}>{copy.bookNow}</Button>
+                        <Button onClick={() => navigate(`/tourism/guide-booking/${guide.id}?packageId=${pkg.id}`)}>{copy.bookNow}</Button>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
+            {!packages.length && (
+              <Card>
+                <CardContent className="p-5 text-sm text-muted-foreground">{copy.noPackages}</CardContent>
+              </Card>
+            )}
           </div>
 
           <div>
@@ -176,6 +190,11 @@ const GuideProfilePage = () => {
                 </Card>
               ))}
             </div>
+            {!reviews.length && (
+              <Card>
+                <CardContent className="p-5 text-sm text-muted-foreground">{copy.noReviews}</CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </section>

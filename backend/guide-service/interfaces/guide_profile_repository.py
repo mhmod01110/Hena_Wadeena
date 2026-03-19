@@ -17,6 +17,10 @@ class IGuideProfileRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    async def list_by_kind(self, entity_kind: str, status_filter: Optional[str] = None) -> list[GuideProfile]:
+        raise NotImplementedError
+
+    @abstractmethod
     async def get_by_id(self, entity_id: str) -> Optional[GuideProfile]:
         raise NotImplementedError
 
@@ -26,4 +30,8 @@ class IGuideProfileRepository(ABC):
 
     @abstractmethod
     async def update(self, entity: GuideProfile) -> GuideProfile:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete(self, entity: GuideProfile) -> None:
         raise NotImplementedError

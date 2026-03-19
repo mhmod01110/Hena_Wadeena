@@ -13,11 +13,13 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends build-essential curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY ai-service/requirements.txt .
 RUN pip install --upgrade pip \
     && pip install -r requirements.txt
 
-COPY . .
+COPY ai-service/ /app/ai-service/
+
+WORKDIR /app/ai-service
 
 RUN groupadd --gid 10001 appuser \
     && useradd --uid 10001 --gid appuser --shell /usr/sbin/nologin --no-create-home appuser \
@@ -26,6 +28,6 @@ RUN groupadd --gid 10001 appuser \
 
 USER appuser
 
-EXPOSE 7000
+EXPOSE 8010
 
 CMD ["python", "docker/wait_for_services.py"]

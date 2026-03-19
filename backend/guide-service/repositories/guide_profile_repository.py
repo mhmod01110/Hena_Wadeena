@@ -28,6 +28,14 @@ class SqlAlchemyGuideProfileRepository(IGuideProfileRepository):
         result = await self._session.execute(query)
         return list(result.scalars().all())
 
+    async def list_by_kind(self, entity_kind: str, status_filter: Optional[str] = None) -> list[GuideProfile]:
+        query = select(GuideProfile).where(GuideProfile.entity_kind == entity_kind)
+        if status_filter:
+            query = query.where(GuideProfile.status == status_filter)
+        query = query.order_by(GuideProfile.created_at.desc())
+        result = await self._session.execute(query)
+        return list(result.scalars().all())
+
     async def get_by_id(self, entity_id: str) -> Optional[GuideProfile]:
         result = await self._session.execute(select(GuideProfile).where(GuideProfile.id == entity_id))
         return result.scalar_one_or_none()
@@ -40,3 +48,7 @@ class SqlAlchemyGuideProfileRepository(IGuideProfileRepository):
         await self._session.flush()
         await self._session.refresh(entity)
         return entity
+
+    async def delete(self, entity: GuideProfile) -> None:
+        await self._session.delete(entity)
+        await self._session.flush()
