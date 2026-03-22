@@ -179,7 +179,7 @@ export function ChatWidget() {
             id: userMessageId,
             role: "user",
             content: value,
-            status: "pending",
+            status: "pending" as const,
           },
         ]);
       }
@@ -194,7 +194,7 @@ export function ChatWidget() {
 
         setMessages((prev) => {
           const withConfirmedUser = prev.map((msg) =>
-            msg.id === userMessageId ? { ...msg, status: "sent" } : msg
+            msg.id === userMessageId ? { ...msg, status: "sent" as const } : msg
           );
           return [
             ...withConfirmedUser,
@@ -202,13 +202,13 @@ export function ChatWidget() {
               id: res.data.message_id,
               role: "assistant",
               content: res.data.content,
-              status: "sent",
+              status: "sent" as const,
             },
           ];
         });
       } catch {
         setMessages((prev) =>
-          prev.map((msg) => (msg.id === userMessageId ? { ...msg, status: "failed" } : msg))
+          prev.map((msg) => (msg.id === userMessageId ? { ...msg, status: "failed" as const } : msg))
         );
       } finally {
         setSending(false);

@@ -677,14 +677,19 @@ export interface Opportunity {
   id: string;
   title: string;
   category: string;
+  opportunity_type: string;
   location: string;
   investment: string;
-  min_investment?: number;
-  max_investment?: number;
+  min_investment: number;
+  max_investment: number;
   roi: string;
   status: string;
   description: string;
-  details?: string;
+  interest_count: number;
+  is_verified: boolean;
+  is_watchlisted: boolean;
+  created_at: string;
+  updated_at: string;
   image?: string;
 }
 
@@ -700,39 +705,136 @@ export interface Startup {
   image?: string;
 }
 
+export interface InvestmentInterest {
+  id: string;
+  opportunity_id: string;
+  opportunity_title?: string;
+  opportunity_category?: string;
+  opportunity_location?: string;
+  opportunity_type?: string;
+  investor_id: string;
+  message: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  company_name?: string;
+  investor_type?: string;
+  budget_range?: string;
+  status: string;
+  owner_notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvestorDashboard {
+  status_counts: Record<string, number>;
+  recent_interests: InvestmentInterest[];
+  watchlist: Opportunity[];
+  recommended: Opportunity[];
+}
+
 type OpportunityDto = {
   id: string;
   owner_id: string;
   title: string;
   category: string;
+  opportunity_type: string;
   location: string;
   min_investment: number;
   max_investment: number;
+  investment_range: string;
   expected_roi: string;
   description: string;
   status: string;
   is_verified: boolean;
+  interest_count: number;
+  is_watchlisted: boolean;
   created_at: string;
+  updated_at: string;
 };
+
+type InterestDto = {
+  id: string;
+  opportunity_id: string;
+  opportunity_title?: string;
+  opportunity_category?: string;
+  opportunity_location?: string;
+  opportunity_type?: string;
+  investor_id: string;
+  message: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  company_name?: string;
+  investor_type?: string;
+  budget_range?: string;
+  status: string;
+  owner_notes?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type DashboardDto = {
+  status_counts: Record<string, number>;
+  recent_interests: InterestDto[];
+  watchlist: OpportunityDto[];
+  recommended: OpportunityDto[];
+};
+
+export interface InterestCreateInput {
+  message: string;
+  contact_name: string;
+  contact_email: string;
+  contact_phone: string;
+  company_name?: string;
+  investor_type?: string;
+  budget_range?: string;
+}
+
+export interface OpportunityFilters {
+  category?: string;
+  opportunity_type?: string;
+  location?: string;
+  owner_id?: string;
+  status?: string;
+}
 
 const toOpportunity = (o: OpportunityDto): Opportunity => ({
   id: o.id,
   title: o.title,
   category: o.category,
   location: o.location,
-  investment: `${o.min_investment.toLocaleString()} - ${o.max_investment.toLocaleString()} EGP`,
+  opportunity_type: o.opportunity_type,
+  investment: o.investment_range || `${o.min_investment.toLocaleString()} - ${o.max_investment.toLocaleString()} EGP`,
   min_investment: o.min_investment,
   max_investment: o.max_investment,
   roi: o.expected_roi,
   status: o.status,
   description: o.description,
-  details: o.description,
+  interest_count: o.interest_count,
+  is_verified: o.is_verified,
+  is_watchlisted: o.is_watchlisted,
+  created_at: o.created_at,
+  updated_at: o.updated_at,
   image: fallbackImage(`investment-${o.id}`),
 });
 
+const toInterest = (interest: InterestDto): InvestmentInterest => ({
+  ...interest,
+});
+
+const toDashboard = (dashboard: DashboardDto): InvestorDashboard => ({
+  status_counts: dashboard.status_counts || {},
+  recent_interests: dashboard.recent_interests.map(toInterest),
+  watchlist: dashboard.watchlist.map(toOpportunity),
+  recommended: dashboard.recommended.map(toOpportunity),
+});
+
 export const investmentAPI = {
-  getOpportunities: async () => {
-    const payload = await apiFetch<ApiEnvelope<OpportunityDto[]>>("/investments/opportunities");
+  getOpportunities: async (filters: OpportunityFilters = {}) => {
+    const payload = await apiFetch<ApiEnvelope<OpportunityDto[]>>(
+      withQuery("/investments/opportunities", filters as Record<string, string | number | boolean | undefined | null>),
+    );
     return { success: true, data: toEnvelope<OpportunityDto[]>(payload).data.map(toOpportunity) };
   },
 
@@ -742,10 +844,10 @@ export const investmentAPI = {
   },
 
   getStartups: async () => {
-    const opportunities = (await investmentAPI.getOpportunities()).data;
+    const opportunities = (await investmentAPI.getOpportunities({ opportunity_type: "startup" })).data;
     return {
       success: true,
-      data: opportunities.slice(0, 6).map((o, idx) => ({
+      data: opportunities.map((o, idx) => ({
         id: o.id,
         name: o.title,
         sector: o.category,
@@ -759,17 +861,49 @@ export const investmentAPI = {
     };
   },
 
-  expressInterest: async (opportunityId: string, message: string) => {
-    const payload = await apiFetch<ApiEnvelope<{ id: string; status: string }>>("/investments/interests", {
+  expressInterest: async (opportunityId: string, body: InterestCreateInput) => {
+    const payload = await apiFetch<ApiEnvelope<InterestDto>>(`/investments/opportunities/${opportunityId}/interests`, {
       method: "POST",
-      body: JSON.stringify({ opportunity_id: opportunityId, message }),
+      body: JSON.stringify(body),
     });
+    return { success: true, data: toInterest(toEnvelope<InterestDto>(payload).data) };
+  },
+
+  getMyInterests: async (status?: string) => {
+    const payload = await apiFetch<ApiEnvelope<InterestDto[]>>(withQuery("/investments/interests/my", { status }));
+    return { success: true, data: toEnvelope<InterestDto[]>(payload).data.map(toInterest) };
+  },
+
+  getWatchlist: async () => {
+    const payload = await apiFetch<ApiEnvelope<OpportunityDto[]>>("/investments/watchlist");
+    return { success: true, data: toEnvelope<OpportunityDto[]>(payload).data.map(toOpportunity) };
+  },
+
+  addWatchlist: async (opportunityId: string) => {
+    const payload = await apiFetch<ApiEnvelope<{ id: string; opportunity_id: string }>>(
+      `/investments/watchlist/${opportunityId}`,
+      { method: "POST" },
+    );
     return toEnvelope(payload);
+  },
+
+  removeWatchlist: async (opportunityId: string) => {
+    await apiFetch<void>(`/investments/watchlist/${opportunityId}`, {
+      method: "DELETE",
+      expectNoContent: true,
+    });
+    return { success: true };
+  },
+
+  getDashboard: async () => {
+    const payload = await apiFetch<ApiEnvelope<DashboardDto>>("/investments/dashboard");
+    return { success: true, data: toDashboard(toEnvelope<DashboardDto>(payload).data) };
   },
 
   createOpportunity: async (body: {
     title: string;
     category: string;
+    opportunity_type?: string;
     location: string;
     min_investment: number;
     max_investment: number;
@@ -782,6 +916,12 @@ export const investmentAPI = {
     });
     return { success: true, data: toOpportunity(toEnvelope<OpportunityDto>(payload).data) };
   },
+};
+
+export const __investmentTestUtils = {
+  toOpportunity,
+  toInterest,
+  toDashboard,
 };
 
 export interface POI {

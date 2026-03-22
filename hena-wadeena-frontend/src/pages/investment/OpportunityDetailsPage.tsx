@@ -1,250 +1,209 @@
-import { Layout } from "@/components/layout/Layout";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowRight, MapPin, TrendingUp, Building2, Calendar, FileText, Users, Phone, Mail, Globe } from "lucide-react";
+import { ArrowRight, Bookmark, BookmarkCheck, CalendarDays, DollarSign, MapPin, Send, TrendingUp } from "lucide-react";
+import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { InteractiveMap } from "@/components/maps/InteractiveMap";
-
-// Mock data
-const opportunityData = {
-  id: 1,
-  title: "مشروع زراعي متكامل - 100 فدان",
-  category: "زراعة",
-  location: "الداخلة",
-  lat: 25.4867,
-  lng: 29.0000,
-  investment: "5-10 مليون جنيه",
-  roi: "18-22%",
-  status: "متاح",
-  description: "فرصة استثمارية في مشروع زراعي متكامل يشمل زراعة التمور والزيتون مع نظام ري حديث.",
-  fullDescription: `
-    يقع المشروع في قلب واحة الداخلة على مساحة 100 فدان من الأراضي الزراعية الخصبة. 
-    يتميز المشروع بموقع استراتيجي قريب من الطرق الرئيسية مما يسهل عمليات النقل والتوزيع.
-    
-    يشمل المشروع:
-    - زراعة 5000 نخلة من أجود أنواع التمور
-    - 3000 شجرة زيتون
-    - نظام ري بالتنقيط حديث وموفر للمياه
-    - مبنى إداري ومخازن مبردة
-    - خطوط تعبئة وتغليف
-  `,
-  highlights: [
-    "موقع استراتيجي على الطريق الرئيسي",
-    "تربة خصبة ومياه وفيرة",
-    "إعفاءات ضريبية لمدة 10 سنوات",
-    "دعم حكومي للمشاريع الزراعية",
-    "سوق تصديري واعد",
-  ],
-  timeline: "3-5 سنوات للعائد الكامل",
-  minInvestment: "5,000,000 جنيه",
-  maxInvestment: "10,000,000 جنيه",
-  paybackPeriod: "4 سنوات",
-  documents: [
-    { name: "دراسة الجدوى", type: "PDF" },
-    { name: "خريطة الموقع", type: "PDF" },
-    { name: "التراخيص والموافقات", type: "PDF" },
-  ],
-  contact: {
-    name: "مكتب الاستثمار - الوادي الجديد",
-    phone: "0927123456",
-    email: "invest@newvalley.gov.eg",
-    website: "www.newvalley-invest.gov.eg",
-  },
-};
+import { investmentAPI, getCurrentUser, type Opportunity } from "@/services/api";
+import { Skeleton } from "@/components/motion/Skeleton";
+import { toast } from "sonner";
+import { useI18n } from "@/i18n/I18nProvider";
 
 const OpportunityDetailsPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const { language, isRTL } = useI18n();
+  const currentUser = getCurrentUser();
+  const [opportunity, setOpportunity] = useState<Opportunity | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [watchlistBusy, setWatchlistBusy] = useState(false);
 
-  const mapLocations = [
-    {
-      id: 1,
-      name: opportunityData.title,
-      lat: opportunityData.lat,
-      lng: opportunityData.lng,
-      description: opportunityData.location,
-      type: "فرصة استثمارية",
-    },
-  ];
+  useEffect(() => {
+    if (!id) {
+      navigate("/investment");
+      return;
+    }
+
+    setLoading(true);
+    investmentAPI
+      .getOpportunity(id)
+      .then((response) => setOpportunity(response.data))
+      .catch((error: Error) => {
+        toast.error(error.message || "Failed to load opportunity");
+        navigate("/investment");
+      })
+      .finally(() => setLoading(false));
+  }, [id, navigate]);
+
+  const toggleWatchlist = async () => {
+    if (!opportunity) return;
+    if (currentUser?.role !== "investor") {
+      toast.error(language === "ar" ? "سجل الدخول كمستثمر أولاً" : "Please log in as an investor first");
+      return;
+    }
+
+    setWatchlistBusy(true);
+    try {
+      if (opportunity.is_watchlisted) {
+        await investmentAPI.removeWatchlist(opportunity.id);
+        setOpportunity({ ...opportunity, is_watchlisted: false });
+        toast.success(language === "ar" ? "تمت إزالة الفرصة من المتابعة" : "Removed from watchlist");
+      } else {
+        await investmentAPI.addWatchlist(opportunity.id);
+        setOpportunity({ ...opportunity, is_watchlisted: true });
+        toast.success(language === "ar" ? "تمت إضافة الفرصة للمتابعة" : "Added to watchlist");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update watchlist");
+    } finally {
+      setWatchlistBusy(false);
+    }
+  };
+
+  const createdDate = opportunity
+    ? new Date(opportunity.created_at).toLocaleDateString(language === "ar" ? "ar-EG" : "en-US")
+    : "";
 
   return (
     <Layout>
       <section className="py-8 md:py-12">
         <div className="container px-4">
-          <Button
-            variant="ghost"
-            onClick={() => navigate("/investment")}
-            className="mb-6"
-          >
-            <ArrowRight className="h-4 w-4 ml-2" />
-            العودة للاستثمار
+          <Button variant="ghost" onClick={() => navigate("/investment")} className="mb-6">
+            <ArrowRight className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+            {language === "ar" ? "العودة للاستثمار" : "Back to investments"}
           </Button>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
-              {/* Header */}
-              <Card className="border-border/50">
-                <CardContent className="p-6">
-                  <div className="flex flex-wrap items-center gap-2 mb-4">
-                    <Badge className="bg-primary">{opportunityData.status}</Badge>
-                    <Badge variant="outline">{opportunityData.category}</Badge>
-                  </div>
-
-                  <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-4">
-                    {opportunityData.title}
-                  </h1>
-
-                  <div className="flex flex-wrap gap-4 text-muted-foreground">
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-5 w-5 text-primary" />
-                      <span>{opportunityData.location}</span>
+          {loading ? (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="space-y-6 lg:col-span-2">
+                <Skeleton h="h-40" className="rounded-2xl" />
+                <Skeleton h="h-72" className="rounded-2xl" />
+              </div>
+              <Skeleton h="h-80" className="rounded-2xl" />
+            </div>
+          ) : opportunity ? (
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+              <div className="space-y-6 lg:col-span-2">
+                <Card className="rounded-2xl border-border/50">
+                  <CardContent className="p-6">
+                    <div className="mb-4 flex flex-wrap items-center gap-2">
+                      <Badge className="bg-primary">{opportunity.status}</Badge>
+                      <Badge variant="outline">{opportunity.category}</Badge>
+                      <Badge variant="secondary">{opportunity.opportunity_type}</Badge>
+                      {opportunity.is_verified ? <Badge variant="secondary">Verified</Badge> : null}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-primary" />
-                      <span>العائد المتوقع: {opportunityData.roi}</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
 
-              {/* Description */}
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-lg">وصف المشروع</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-muted-foreground whitespace-pre-line leading-relaxed">
-                    {opportunityData.fullDescription}
-                  </p>
-                </CardContent>
-              </Card>
+                    <h1 className="mb-4 text-2xl font-bold text-foreground md:text-3xl">{opportunity.title}</h1>
 
-              {/* Highlights */}
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-lg">مميزات المشروع</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {opportunityData.highlights.map((highlight, index) => (
-                      <li key={index} className="flex items-start gap-2">
-                        <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                          <span className="text-xs font-bold text-primary">{index + 1}</span>
-                        </div>
-                        <span className="text-muted-foreground">{highlight}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </CardContent>
-              </Card>
-
-              {/* Map */}
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-lg">موقع المشروع</CardTitle>
-                </CardHeader>
-                <CardContent className="p-0 pb-4 px-4">
-                  <InteractiveMap
-                    locations={mapLocations}
-                    center={[opportunityData.lat, opportunityData.lng]}
-                    zoom={10}
-                    className="h-[300px] w-full rounded-xl overflow-hidden"
-                  />
-                </CardContent>
-              </Card>
-
-              {/* Documents */}
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-lg">المستندات</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2">
-                    {opportunityData.documents.map((doc, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3">
-                          <FileText className="h-5 w-5 text-primary" />
-                          <span className="font-medium">{doc.name}</span>
-                        </div>
-                        <Badge variant="secondary">{doc.type}</Badge>
+                    <div className="flex flex-wrap gap-4 text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <MapPin className="h-5 w-5 text-primary" />
+                        <span>{opportunity.location}</span>
                       </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Sidebar */}
-            <div className="space-y-6">
-              {/* Investment Details */}
-              <Card className="border-border/50 sticky top-4">
-                <CardHeader>
-                  <CardTitle className="text-lg">تفاصيل الاستثمار</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="bg-primary/5 rounded-lg p-4">
-                    <p className="text-sm text-muted-foreground mb-1">حجم الاستثمار المطلوب</p>
-                    <p className="text-xl font-bold text-primary">{opportunityData.investment}</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-muted/50 rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground mb-1">العائد المتوقع</p>
-                      <p className="font-semibold text-primary">{opportunityData.roi}</p>
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-5 w-5 text-primary" />
+                        <span>{language === "ar" ? "العائد المتوقع" : "Expected ROI"}: {opportunity.roi}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <CalendarDays className="h-5 w-5 text-primary" />
+                        <span>{language === "ar" ? "تاريخ الإضافة" : "Listed"}: {createdDate}</span>
+                      </div>
                     </div>
-                    <div className="bg-muted/50 rounded-lg p-3">
-                      <p className="text-xs text-muted-foreground mb-1">فترة الاسترداد</p>
-                      <p className="font-semibold">{opportunityData.paybackPeriod}</p>
+                  </CardContent>
+                </Card>
+
+                <Card className="rounded-2xl border-border/50">
+                  <CardHeader>
+                    <CardTitle>{language === "ar" ? "وصف الفرصة" : "Opportunity overview"}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 text-muted-foreground">
+                    <p className="whitespace-pre-line leading-relaxed">{opportunity.description}</p>
+                    <div className="grid grid-cols-1 gap-4 rounded-2xl bg-muted/40 p-4 md:grid-cols-3">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {language === "ar" ? "الحد الأدنى" : "Minimum"}
+                        </p>
+                        <p className="mt-1 font-semibold text-foreground">
+                          {opportunity.min_investment.toLocaleString()} EGP
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {language === "ar" ? "الحد الأقصى" : "Maximum"}
+                        </p>
+                        <p className="mt-1 font-semibold text-foreground">
+                          {opportunity.max_investment.toLocaleString()} EGP
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                          {language === "ar" ? "عدد الاهتمامات" : "Interest count"}
+                        </p>
+                        <p className="mt-1 font-semibold text-foreground">{opportunity.interest_count}</p>
+                      </div>
                     </div>
-                  </div>
+                  </CardContent>
+                </Card>
+              </div>
 
-                  <div className="bg-muted/50 rounded-lg p-3">
-                    <p className="text-xs text-muted-foreground mb-1">الجدول الزمني</p>
-                    <p className="font-semibold">{opportunityData.timeline}</p>
-                  </div>
+              <div className="space-y-6">
+                <Card className="sticky top-4 rounded-2xl border-border/50">
+                  <CardHeader>
+                    <CardTitle>{language === "ar" ? "ملخص الاستثمار" : "Investment summary"}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="rounded-2xl bg-primary/5 p-4">
+                      <p className="mb-1 text-sm text-muted-foreground">
+                        {language === "ar" ? "النطاق الاستثماري" : "Investment range"}
+                      </p>
+                      <p className="text-xl font-bold text-primary">{opportunity.investment}</p>
+                    </div>
 
-                  <Button
-                    className="w-full"
-                    size="lg"
-                    onClick={() => navigate(`/investment/contact/${id}`)}
-                  >
-                    <Mail className="h-5 w-5 ml-2" />
-                    تواصل للاستثمار
-                  </Button>
-                </CardContent>
-              </Card>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="rounded-xl bg-muted/50 p-3">
+                        <p className="text-xs text-muted-foreground">{language === "ar" ? "العائد" : "ROI"}</p>
+                        <p className="font-semibold text-primary">{opportunity.roi}</p>
+                      </div>
+                      <div className="rounded-xl bg-muted/50 p-3">
+                        <p className="text-xs text-muted-foreground">{language === "ar" ? "الحالة" : "Status"}</p>
+                        <p className="font-semibold">{opportunity.status}</p>
+                      </div>
+                    </div>
 
-              {/* Contact Info */}
-              <Card className="border-border/50">
-                <CardHeader>
-                  <CardTitle className="text-lg">معلومات التواصل</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <Building2 className="h-5 w-5 text-primary" />
-                    <span className="text-sm">{opportunityData.contact.name}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Phone className="h-5 w-5 text-primary" />
-                    <span className="text-sm">{opportunityData.contact.phone}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Mail className="h-5 w-5 text-primary" />
-                    <span className="text-sm">{opportunityData.contact.email}</span>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <Globe className="h-5 w-5 text-primary" />
-                    <span className="text-sm">{opportunityData.contact.website}</span>
-                  </div>
-                </CardContent>
-              </Card>
+                    <Button className="w-full" size="lg" onClick={() => navigate(`/investment/contact/${opportunity.id}`)}>
+                      <Send className={`h-5 w-5 ${isRTL ? "ml-2" : "mr-2"}`} />
+                      {language === "ar" ? "إبداء اهتمام" : "Express interest"}
+                    </Button>
+
+                    {currentUser?.role === "investor" ? (
+                      <Button variant="outline" className="w-full" disabled={watchlistBusy} onClick={toggleWatchlist}>
+                        {opportunity.is_watchlisted ? (
+                          <BookmarkCheck className={`h-5 w-5 ${isRTL ? "ml-2" : "mr-2"}`} />
+                        ) : (
+                          <Bookmark className={`h-5 w-5 ${isRTL ? "ml-2" : "mr-2"}`} />
+                        )}
+                        {opportunity.is_watchlisted
+                          ? language === "ar"
+                            ? "إزالة من المتابعة"
+                            : "Remove from watchlist"
+                          : language === "ar"
+                            ? "إضافة للمتابعة"
+                            : "Add to watchlist"}
+                      </Button>
+                    ) : null}
+
+                    <div className="rounded-xl bg-muted/40 p-4 text-sm text-muted-foreground">
+                      <div className="mb-2 flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-primary" />
+                        <span>{language === "ar" ? "تمت تهيئة هذه الصفحة من بيانات فعلية عبر الخدمة الجديدة." : "This page is now powered by real investment-service data."}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </section>
     </Layout>

@@ -39,6 +39,7 @@ import SupplierDetailsPage from "./pages/marketplace/SupplierDetailsPage";
 // Investment pages
 import OpportunityDetailsPage from "./pages/investment/OpportunityDetailsPage";
 import ContactPage from "./pages/investment/ContactPage";
+import InvestorDashboardPage from "./pages/investment/InvestorDashboardPage";
 import SearchResultsPage from "./pages/search/SearchResultsPage";
 import AdminDashboardPage from "./pages/admin/AdminDashboardPage";
 import ReviewerDashboardPage from "./pages/admin/ReviewerDashboardPage";
@@ -95,6 +96,7 @@ const App = () => (
           <Route path="/marketplace/supplier/:id" element={<SupplierDetailsPage />} />
           {/* Investment */}
           <Route path="/investment" element={<InvestmentPage />} />
+          <Route path="/investment/dashboard" element={<InvestorDashboardPage />} />
           <Route path="/investment/opportunity/:id" element={<OpportunityDetailsPage />} />
           <Route path="/investment/contact/:id" element={<ContactPage />} />
           {/* Admin / Reviewer */}

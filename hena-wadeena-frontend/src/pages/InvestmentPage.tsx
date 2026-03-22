@@ -1,31 +1,31 @@
-import { useState, useEffect } from "react";
-import { Layout } from "@/components/layout/Layout";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search, MapPin, TrendingUp, Building2, Send, ArrowLeft, DollarSign } from "lucide-react";
+import { ArrowLeft, Building2, DollarSign, LayoutDashboard, MapPin, Search, Send, TrendingUp } from "lucide-react";
+import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { investmentAPI, type Opportunity, type Startup } from "@/services/api";
+import { investmentAPI, getCurrentUser, type Opportunity, type Startup } from "@/services/api";
 import { SR } from "@/components/motion/ScrollReveal";
 import { PageTransition } from "@/components/motion/PageTransition";
 import { Skeleton } from "@/components/motion/Skeleton";
 import { PageHero } from "@/components/layout/PageHero";
 import heroInvestment from "@/assets/hero-investment.jpg";
 import { useI18n } from "@/i18n/I18nProvider";
+import { toast } from "sonner";
 
-const isAvailableStatus = (status: string) => {
-  const normalized = status.trim().toLowerCase();
-  return normalized === "available" || normalized === "open" || status === "متاح";
-};
+const isAvailableStatus = (status: string) => status.trim().toLowerCase() === "open";
 
 const InvestmentPage = () => {
   const { language, isRTL } = useI18n();
   const navigate = useNavigate();
+  const currentUser = getCurrentUser();
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [startups, setStartups] = useState<Startup[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
 
   const copy =
     language === "ar"
@@ -33,61 +33,102 @@ const InvestmentPage = () => {
           heroAlt: "فرص الاستثمار",
           badge: "فرص الاستثمار",
           title: "فرص الاستثمار",
-          subtitle: "اكتشف الفرص الاستثمارية في الوادي الجديد وتواصل مع الشركات الناشئة",
-          searchPlaceholder: "ابحث عن فرص استثمارية...",
-          tabs: { opportunities: "الفرص الاستثمارية", startups: "الشركات الناشئة" },
+          subtitle: "اكتشف الفرص الواعدة في الوادي الجديد وتابع الشركات الناشئة من نفس المنصة.",
+          searchPlaceholder: "ابحث عن فرصة أو شركة ناشئة...",
+          tabs: { opportunities: "الفرص", startups: "الشركات الناشئة" },
+          dashboard: "لوحة المستثمر",
           expectedRoi: "العائد المتوقع",
           details: "التفاصيل",
-          inquire: "استفسار",
+          inquire: "إبداء اهتمام",
           contact: "تواصل",
           team: "أعضاء",
           available: "متاح",
+          pending: "قيد المراجعة",
+          empty: "لا توجد نتائج مطابقة حالياً.",
         }
       : {
           heroAlt: "Investment Opportunities",
           badge: "Investment Opportunities",
           title: "Investment Opportunities",
-          subtitle: "Discover promising opportunities in New Valley and connect with startups",
-          searchPlaceholder: "Search investment opportunities...",
+          subtitle: "Discover strong opportunities in New Valley and explore startup deals from the same marketplace.",
+          searchPlaceholder: "Search for an opportunity or startup...",
           tabs: { opportunities: "Opportunities", startups: "Startups" },
+          dashboard: "Investor Dashboard",
           expectedRoi: "Expected ROI",
           details: "Details",
-          inquire: "Inquire",
+          inquire: "Express Interest",
           contact: "Contact",
           team: "Members",
-          available: "Available",
+          available: "Open",
+          pending: "Pending review",
+          empty: "No matching results right now.",
         };
 
   useEffect(() => {
+    setLoading(true);
     Promise.all([
-      investmentAPI.getOpportunities().then((r) => setOpportunities(r.data)),
-      investmentAPI.getStartups().then((r) => setStartups(r.data)),
-    ]).finally(() => setLoading(false));
+      investmentAPI.getOpportunities().then((response) => setOpportunities(response.data)),
+      investmentAPI.getStartups().then((response) => setStartups(response.data)),
+    ])
+      .catch((error: Error) => {
+        toast.error(error.message || "Failed to load investment data");
+      })
+      .finally(() => setLoading(false));
   }, []);
+
+  const filteredOpportunities = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const source = opportunities.filter((opportunity) => opportunity.opportunity_type !== "startup");
+    if (!needle) return source;
+    return source.filter((opportunity) =>
+      [opportunity.title, opportunity.category, opportunity.location, opportunity.description]
+        .join(" ")
+        .toLowerCase()
+        .includes(needle),
+    );
+  }, [opportunities, query]);
+
+  const filteredStartups = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return startups;
+    return startups.filter((startup) =>
+      [startup.name, startup.sector, startup.location, startup.description].join(" ").toLowerCase().includes(needle),
+    );
+  }, [startups, query]);
 
   return (
     <Layout>
       <PageTransition>
         <PageHero image={heroInvestment} alt={copy.heroAlt}>
           <SR>
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full glass mb-6">
+            <div className="inline-flex items-center gap-2 rounded-full glass px-4 py-2">
               <TrendingUp className="h-5 w-5 text-accent" />
               <span className="text-sm font-semibold text-card">{copy.badge}</span>
             </div>
           </SR>
           <SR delay={100}>
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-card mb-5">{copy.title}</h1>
+            <h1 className="mb-5 text-4xl font-bold text-card md:text-5xl lg:text-6xl">{copy.title}</h1>
           </SR>
           <SR delay={200}>
-            <p className="text-lg md:text-xl text-card/90 mb-10">{copy.subtitle}</p>
+            <p className="mb-10 text-lg text-card/90 md:text-xl">{copy.subtitle}</p>
           </SR>
           <SR delay={300}>
-            <div className="relative max-w-xl mx-auto">
-              <Search className={`absolute top-1/2 -translate-y-1/2 h-6 w-6 text-muted-foreground ${isRTL ? "right-4" : "left-4"}`} />
-              <Input
-                placeholder={copy.searchPlaceholder}
-                className={`h-16 text-lg rounded-2xl shadow-lg border-0 bg-card/90 backdrop-blur-sm ${isRTL ? "pr-14" : "pl-14"}`}
-              />
+            <div className="mx-auto flex max-w-4xl flex-col gap-4 md:flex-row">
+              <div className="relative flex-1">
+                <Search className={`absolute top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground ${isRTL ? "right-4" : "left-4"}`} />
+                <Input
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  placeholder={copy.searchPlaceholder}
+                  className={`h-14 rounded-2xl border-0 bg-card/90 text-lg backdrop-blur-sm ${isRTL ? "pr-12" : "pl-12"}`}
+                />
+              </div>
+              {currentUser?.role === "investor" ? (
+                <Button size="lg" className="h-14 rounded-2xl px-6" onClick={() => navigate("/investment/dashboard")}>
+                  <LayoutDashboard className={`h-5 w-5 ${isRTL ? "ml-2" : "mr-2"}`} />
+                  {copy.dashboard}
+                </Button>
+              ) : null}
             </div>
           </SR>
         </PageHero>
@@ -96,60 +137,75 @@ const InvestmentPage = () => {
           <div className="container px-4">
             <Tabs defaultValue="opportunities" className="w-full">
               <SR>
-                <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-10 h-12 rounded-xl">
-                  <TabsTrigger value="opportunities" className="rounded-lg text-sm font-semibold">{copy.tabs.opportunities}</TabsTrigger>
-                  <TabsTrigger value="startups" className="rounded-lg text-sm font-semibold">{copy.tabs.startups}</TabsTrigger>
+                <TabsList className="mx-auto mb-10 grid h-12 w-full max-w-md grid-cols-2 rounded-xl">
+                  <TabsTrigger value="opportunities" className="rounded-lg text-sm font-semibold">
+                    {copy.tabs.opportunities}
+                  </TabsTrigger>
+                  <TabsTrigger value="startups" className="rounded-lg text-sm font-semibold">
+                    {copy.tabs.startups}
+                  </TabsTrigger>
                 </TabsList>
               </SR>
 
               <TabsContent value="opportunities" className="space-y-6">
                 {loading ? (
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {[1, 2, 3, 4].map((i) => <Skeleton key={i} h="h-64" className="rounded-2xl" />)}
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    {[1, 2, 3, 4].map((item) => (
+                      <Skeleton key={item} h="h-64" className="rounded-2xl" />
+                    ))}
                   </div>
-                ) : (
+                ) : filteredOpportunities.length ? (
                   <SR stagger>
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
-                      {opportunities.map((opp) => (
-                        <Card key={opp.id} className="border-border/50 hover:border-primary/40 hover-lift rounded-2xl">
+                    <div className="grid grid-cols-1 gap-7 lg:grid-cols-2">
+                      {filteredOpportunities.map((opportunity) => (
+                        <Card key={opportunity.id} className="hover-lift rounded-2xl border-border/50 hover:border-primary/40">
                           <CardContent className="p-7">
-                            <div className="flex items-start justify-between mb-5">
+                            <div className="mb-5 flex items-start justify-between gap-3">
                               <Badge
-                                variant={isAvailableStatus(opp.status) ? "default" : "secondary"}
-                                className={isAvailableStatus(opp.status) ? "bg-primary px-3 py-1" : "px-3 py-1"}
+                                variant={isAvailableStatus(opportunity.status) ? "default" : "secondary"}
+                                className={isAvailableStatus(opportunity.status) ? "bg-primary px-3 py-1" : "px-3 py-1"}
                               >
-                                {isAvailableStatus(opp.status) ? copy.available : opp.status}
+                                {isAvailableStatus(opportunity.status) ? copy.available : copy.pending}
                               </Badge>
-                              <Badge variant="outline" className="px-3 py-1">{opp.category}</Badge>
+                              <div className="flex flex-wrap justify-end gap-2">
+                                <Badge variant="outline" className="px-3 py-1">
+                                  {opportunity.category}
+                                </Badge>
+                                {opportunity.is_verified ? <Badge variant="secondary">Verified</Badge> : null}
+                              </div>
                             </div>
-                            <h3 className="text-xl font-bold text-foreground mb-3">{opp.title}</h3>
-                            <p className="text-muted-foreground mb-5 line-clamp-2 leading-relaxed">{opp.description}</p>
-                            <div className="grid grid-cols-2 gap-4 mb-5">
+                            <h3 className="mb-3 text-xl font-bold text-foreground">{opportunity.title}</h3>
+                            <p className="mb-5 line-clamp-2 text-muted-foreground">{opportunity.description}</p>
+                            <div className="mb-5 grid grid-cols-2 gap-4">
                               <div className="flex items-center gap-2.5 text-sm">
-                                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                                   <MapPin className="h-5 w-5 text-primary" />
                                 </div>
-                                <span className="text-muted-foreground">{opp.location}</span>
+                                <span className="text-muted-foreground">{opportunity.location}</span>
                               </div>
                               <div className="flex items-center gap-2.5 text-sm">
-                                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                                   <DollarSign className="h-5 w-5 text-primary" />
                                 </div>
-                                <span className="text-muted-foreground">{opp.investment}</span>
+                                <span className="text-muted-foreground">{opportunity.investment}</span>
                               </div>
-                              <div className="flex items-center gap-2.5 text-sm col-span-2">
-                                <div className="h-9 w-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                              <div className="col-span-2 flex items-center gap-2.5 text-sm">
+                                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10">
                                   <TrendingUp className="h-5 w-5 text-primary" />
                                 </div>
-                                <span className="text-muted-foreground">{copy.expectedRoi}: {opp.roi}</span>
+                                <span className="text-muted-foreground">
+                                  {copy.expectedRoi}: {opportunity.roi} • {opportunity.interest_count} interests
+                                </span>
                               </div>
                             </div>
                             <div className="flex gap-3">
-                              <Button variant="outline" className="flex-1 hover:scale-[1.02] transition-transform" onClick={() => navigate(`/investment/opportunity/${opp.id}`)}>
-                                {copy.details} <ArrowLeft className={`h-4 w-4 ${isRTL ? "mr-2" : "ml-2"}`} />
+                              <Button variant="outline" className="flex-1" onClick={() => navigate(`/investment/opportunity/${opportunity.id}`)}>
+                                {copy.details}
+                                <ArrowLeft className={`h-4 w-4 ${isRTL ? "mr-2" : "ml-2"}`} />
                               </Button>
-                              <Button className="flex-1 hover:scale-[1.02] transition-transform" onClick={() => navigate(`/investment/contact/${opp.id}`)}>
-                                <Send className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />{copy.inquire}
+                              <Button className="flex-1" onClick={() => navigate(`/investment/contact/${opportunity.id}`)}>
+                                <Send className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+                                {copy.inquire}
                               </Button>
                             </div>
                           </CardContent>
@@ -157,43 +213,61 @@ const InvestmentPage = () => {
                       ))}
                     </div>
                   </SR>
+                ) : (
+                  <Card className="rounded-2xl border-dashed">
+                    <CardContent className="p-8 text-center text-muted-foreground">{copy.empty}</CardContent>
+                  </Card>
                 )}
               </TabsContent>
 
               <TabsContent value="startups" className="space-y-6">
                 {loading ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {[1, 2, 3].map((i) => <Skeleton key={i} h="h-56" className="rounded-2xl" />)}
+                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                    {[1, 2, 3].map((item) => (
+                      <Skeleton key={item} h="h-56" className="rounded-2xl" />
+                    ))}
                   </div>
-                ) : (
+                ) : filteredStartups.length ? (
                   <SR stagger>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
-                      {startups.map((startup) => (
-                        <Card key={startup.id} className="border-border/50 hover:border-primary/40 hover-lift rounded-2xl">
+                    <div className="grid grid-cols-1 gap-7 md:grid-cols-2 lg:grid-cols-3">
+                      {filteredStartups.map((startup) => (
+                        <Card key={startup.id} className="hover-lift rounded-2xl border-border/50 hover:border-primary/40">
                           <CardContent className="p-7">
-                            <div className="flex items-center gap-4 mb-5">
-                              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 flex items-center justify-center shadow-md">
+                            <div className="mb-5 flex items-center gap-4">
+                              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 shadow-md">
                                 <Building2 className="h-8 w-8 text-primary" />
                               </div>
                               <div>
                                 <h3 className="text-lg font-bold text-foreground">{startup.name}</h3>
-                                <Badge variant="secondary" className="mt-1">{startup.stage}</Badge>
+                                <Badge variant="secondary" className="mt-1">
+                                  {startup.stage}
+                                </Badge>
                               </div>
                             </div>
-                            <p className="text-muted-foreground mb-5 line-clamp-2 leading-relaxed">{startup.description}</p>
-                            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-5">
-                              <div className="flex items-center gap-1.5"><MapPin className="h-4 w-4" />{startup.location}</div>
+                            <p className="mb-5 line-clamp-3 text-muted-foreground">{startup.description}</p>
+                            <div className="mb-5 flex flex-wrap gap-4 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-1.5">
+                                <MapPin className="h-4 w-4" />
+                                {startup.location}
+                              </div>
                               <div>{startup.sector}</div>
-                              <div>{startup.team} {copy.team}</div>
+                              <div>
+                                {startup.team} {copy.team}
+                              </div>
                             </div>
-                            <Button className="w-full hover:scale-[1.02] transition-transform" onClick={() => navigate(`/investment/contact/${startup.id}`)}>
-                              <Send className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />{copy.contact}
+                            <Button className="w-full" onClick={() => navigate(`/investment/contact/${startup.id}`)}>
+                              <Send className={`h-4 w-4 ${isRTL ? "ml-2" : "mr-2"}`} />
+                              {copy.contact}
                             </Button>
                           </CardContent>
                         </Card>
                       ))}
                     </div>
                   </SR>
+                ) : (
+                  <Card className="rounded-2xl border-dashed">
+                    <CardContent className="p-8 text-center text-muted-foreground">{copy.empty}</CardContent>
+                  </Card>
                 )}
               </TabsContent>
             </Tabs>

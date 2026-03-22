@@ -1,7 +1,7 @@
-﻿import { useEffect, useState } from "react";
-import { Layout } from "@/components/layout/Layout";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { ArrowRight, User, Phone, Mail, Building2, MessageSquare, Send } from "lucide-react";
+import { ArrowRight, Building2, Mail, MessageSquare, Phone, Send, User } from "lucide-react";
+import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,16 +40,16 @@ const ContactPage = () => {
 
     investmentAPI
       .getOpportunity(opportunityId)
-      .then((res) => setOpportunity(res.data))
-      .catch((err: any) => {
-        toast.error(err.message || "Failed to load opportunity");
+      .then((response) => setOpportunity(response.data))
+      .catch((error: Error) => {
+        toast.error(error.message || "Failed to load opportunity");
         navigate("/investment");
       })
       .finally(() => setLoadingOpp(false));
   }, [id, navigate]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
 
     const user = getCurrentUser();
     if (!user) {
@@ -63,25 +63,21 @@ const ContactPage = () => {
       return;
     }
 
-    const composedMessage = [
-      `Investor name: ${formData.name}`,
-      `Phone: ${formData.phone}`,
-      `Email: ${formData.email}`,
-      formData.company ? `Company: ${formData.company}` : "",
-      formData.investorType ? `Investor type: ${formData.investorType}` : "",
-      formData.investmentRange ? `Investment range: ${formData.investmentRange}` : "",
-      `Message: ${formData.message}`,
-    ]
-      .filter(Boolean)
-      .join("\n");
-
     setSubmitting(true);
     try {
-      await investmentAPI.expressInterest(id, composedMessage);
+      await investmentAPI.expressInterest(id, {
+        message: formData.message,
+        contact_name: formData.name,
+        contact_email: formData.email,
+        contact_phone: formData.phone,
+        company_name: formData.company || undefined,
+        investor_type: formData.investorType || undefined,
+        budget_range: formData.investmentRange || undefined,
+      });
       toast.success("Investment interest sent successfully");
-      navigate("/investment");
-    } catch (err: any) {
-      toast.error(err.message || "Failed to send investment interest");
+      navigate("/investment/dashboard");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to send investment interest");
     } finally {
       setSubmitting(false);
     }
@@ -90,15 +86,15 @@ const ContactPage = () => {
   return (
     <Layout>
       <section className="py-8 md:py-12">
-        <div className="container px-4 max-w-2xl">
+        <div className="container max-w-2xl px-4">
           <Button variant="ghost" onClick={() => navigate(-1)} className="mb-6">
-            <ArrowRight className="h-4 w-4 mr-2" />
+            <ArrowRight className="mr-2 h-4 w-4" />
             Back
           </Button>
 
           <Card className="border-border/50">
-            <CardHeader className="text-center pb-2">
-              <div className="mx-auto h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mb-4">
+            <CardHeader className="pb-2 text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
                 <MessageSquare className="h-8 w-8 text-primary" />
               </div>
               <CardTitle className="text-2xl">Investment Contact</CardTitle>
@@ -109,64 +105,97 @@ const ContactPage = () => {
 
             <CardContent className="pt-6">
               <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="name">Full Name *</Label>
                     <div className="relative">
-                      <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="name" placeholder="Enter your name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} className="pl-10" required />
+                      <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="name"
+                        placeholder="Enter your name"
+                        value={formData.name}
+                        onChange={(event) => setFormData({ ...formData, name: event.target.value })}
+                        className="pl-10"
+                        required
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone">Phone Number *</Label>
                     <div className="relative">
-                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="phone" type="tel" placeholder="01xxxxxxxxx" value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} className="pl-10" required />
+                      <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="phone"
+                        type="tel"
+                        placeholder="01xxxxxxxxx"
+                        value={formData.phone}
+                        onChange={(event) => setFormData({ ...formData, phone: event.target.value })}
+                        className="pl-10"
+                        required
+                      />
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email *</Label>
                     <div className="relative">
-                      <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="email" type="email" placeholder="example@email.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} className="pl-10" required />
+                      <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="example@email.com"
+                        value={formData.email}
+                        onChange={(event) => setFormData({ ...formData, email: event.target.value })}
+                        className="pl-10"
+                        required
+                      />
                     </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="company">Company (optional)</Label>
                     <div className="relative">
-                      <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input id="company" placeholder="Company name" value={formData.company} onChange={(e) => setFormData({ ...formData, company: e.target.value })} className="pl-10" />
+                      <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        id="company"
+                        placeholder="Company name"
+                        value={formData.company}
+                        onChange={(event) => setFormData({ ...formData, company: event.target.value })}
+                        className="pl-10"
+                      />
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
-                    <Label>Investor Type *</Label>
+                    <Label>Investor Type</Label>
                     <Select value={formData.investorType} onValueChange={(value) => setFormData({ ...formData, investorType: value })}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose investor type" />
                       </SelectTrigger>
                       <SelectContent>
                         {investorTypes.map((type) => (
-                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
                   </div>
 
                   <div className="space-y-2">
-                    <Label>Expected Investment Range *</Label>
+                    <Label>Expected Investment Range</Label>
                     <Select value={formData.investmentRange} onValueChange={(value) => setFormData({ ...formData, investmentRange: value })}>
                       <SelectTrigger>
                         <SelectValue placeholder="Choose range" />
                       </SelectTrigger>
                       <SelectContent>
                         {investmentRanges.map((range) => (
-                          <SelectItem key={range} value={range}>{range}</SelectItem>
+                          <SelectItem key={range} value={range}>
+                            {range}
+                          </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -179,14 +208,14 @@ const ContactPage = () => {
                     id="message"
                     placeholder="Describe your interest in this opportunity"
                     value={formData.message}
-                    onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                    onChange={(event) => setFormData({ ...formData, message: event.target.value })}
                     rows={5}
                     required
                   />
                 </div>
 
                 <Button type="submit" className="w-full" size="lg" disabled={submitting || loadingOpp}>
-                  <Send className="h-5 w-5 mr-2" />
+                  <Send className="mr-2 h-5 w-5" />
                   {submitting ? "Sending..." : "Send Interest"}
                 </Button>
               </form>

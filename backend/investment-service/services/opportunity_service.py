@@ -1,88 +1,124 @@
-"""Business logic for Opportunity."""
+"""Business logic for investment opportunities."""
+
+from __future__ import annotations
 
 from typing import Optional
 
-from interfaces.opportunity_repository import IOpportunityRepository
-from models import Opportunity
+from interfaces.opportunity_repository import IInvestmentRepository
+from models import InvestmentOpportunity
+from schemas.requests import OpportunityCreate, OpportunityUpdate
+
+
+ALLOWED_OPPORTUNITY_TYPES = {"project", "startup", "land", "partnership", "franchise"}
+ALLOWED_OPPORTUNITY_STATUSES = {"pending_review", "open", "funded", "closed"}
+REVIEW_ROLES = {"reviewer", "admin", "super_admin"}
 
 
 class OpportunityService:
 
-    def __init__(self, repository: IOpportunityRepository):
+    def __init__(self, repository: IInvestmentRepository):
         self._repository = repository
 
     @staticmethod
-    def _apply_payload(entity: Opportunity, payload: dict) -> None:
-        kind = str(payload.get("type") or entity.entity_kind or "opportunity")
-        entity.entity_kind = kind
+    def _validate_investment_range(min_investment: float, max_investment: float) -> None:
+        if min_investment > max_investment:
+            raise ValueError("Minimum investment cannot be greater than maximum investment")
 
-        if kind == "opportunity":
-            entity.owner_id = payload.get("owner_id", entity.owner_id)
-            entity.category = payload.get("category", entity.category)
-            entity.location = payload.get("location", entity.location)
-            if payload.get("min_investment") is not None:
-                entity.min_investment = float(payload["min_investment"])
-            if payload.get("max_investment") is not None:
-                entity.max_investment = float(payload["max_investment"])
-            entity.expected_roi = payload.get("expected_roi", entity.expected_roi)
-            if payload.get("is_verified") is not None:
-                entity.is_verified = bool(payload["is_verified"])
-        elif kind == "interest":
-            entity.opportunity_id = payload.get("opportunity_id", entity.opportunity_id)
-            entity.investor_id = payload.get("investor_id", entity.investor_id)
-            entity.message = payload.get("message", entity.message)
+    @staticmethod
+    def _validate_opportunity_type(opportunity_type: str) -> None:
+        if opportunity_type not in ALLOWED_OPPORTUNITY_TYPES:
+            raise ValueError("Unsupported opportunity type")
 
-    async def create_entity(
+    async def create_opportunity(
         self,
-        title: str,
-        description: Optional[str],
-        status: str,
-        data: dict,
-    ) -> Opportunity:
-        normalized_title = title.strip()
-        if not normalized_title:
-            raise ValueError("Title cannot be empty")
+        *,
+        owner_id: str,
+        role: str,
+        body: OpportunityCreate,
+    ) -> InvestmentOpportunity:
+        self._validate_investment_range(body.min_investment, body.max_investment)
+        self._validate_opportunity_type(body.opportunity_type)
 
-        existing = await self._repository.get_by_title(normalized_title)
-        if existing:
-            raise ValueError("Entity with this title already exists")
-
-        entity = Opportunity(
-            title=normalized_title,
-            description=description,
+        status = "open" if role in REVIEW_ROLES else "pending_review"
+        is_verified = role in REVIEW_ROLES
+        entity = InvestmentOpportunity(
+            owner_id=owner_id,
+            title=body.title.strip(),
+            description=body.description.strip(),
+            category=body.category.strip(),
+            opportunity_type=body.opportunity_type,
+            location=body.location.strip(),
+            min_investment=float(body.min_investment),
+            max_investment=float(body.max_investment),
+            expected_roi=body.expected_roi.strip(),
             status=status,
-            entity_kind=str(data.get("type") or "opportunity"),
+            is_verified=is_verified,
+            interest_count=0,
         )
-        self._apply_payload(entity, data)
-        return await self._repository.create(entity)
+        return await self._repository.create_opportunity(entity)
 
-    async def list_entities(self, status_filter: Optional[str] = None) -> list[Opportunity]:
-        return await self._repository.list(status_filter=status_filter)
+    async def list_opportunities(
+        self,
+        *,
+        category: Optional[str] = None,
+        opportunity_type: Optional[str] = None,
+        location: Optional[str] = None,
+        owner_id: Optional[str] = None,
+        status_filter: Optional[str] = None,
+    ) -> list[InvestmentOpportunity]:
+        if opportunity_type:
+            self._validate_opportunity_type(opportunity_type)
 
-    async def get_entity(self, entity_id: str) -> Optional[Opportunity]:
-        return await self._repository.get_by_id(entity_id)
+        return await self._repository.list_opportunities(
+            category=category,
+            opportunity_type=opportunity_type,
+            location=location,
+            owner_id=owner_id,
+            status_filter=status_filter,
+        )
 
-    async def update_entity(self, entity_id: str, **fields) -> Optional[Opportunity]:
-        entity = await self._repository.get_by_id(entity_id)
-        if not entity:
-            return None
+    async def get_opportunity(self, opportunity_id: str) -> Optional[InvestmentOpportunity]:
+        return await self._repository.get_opportunity_by_id(opportunity_id)
 
-        title = fields.get("title")
-        if title is not None:
-            normalized_title = title.strip()
-            if not normalized_title:
-                raise ValueError("Title cannot be empty")
+    async def update_opportunity(
+        self,
+        *,
+        entity: InvestmentOpportunity,
+        body: OpportunityUpdate,
+        can_review: bool,
+    ) -> InvestmentOpportunity:
+        payload = body.model_dump(exclude_unset=True)
+        min_investment = float(payload.get("min_investment", entity.min_investment))
+        max_investment = float(payload.get("max_investment", entity.max_investment))
+        self._validate_investment_range(min_investment, max_investment)
 
-            existing = await self._repository.get_by_title(normalized_title)
-            if existing and str(existing.id) != str(entity.id):
-                raise ValueError("Entity with this title already exists")
-            entity.title = normalized_title
+        if "opportunity_type" in payload:
+            self._validate_opportunity_type(str(payload["opportunity_type"]))
 
-        for key in ("description", "status"):
-            if key in fields and fields[key] is not None:
-                setattr(entity, key, fields[key])
+        for field in (
+            "title",
+            "description",
+            "category",
+            "opportunity_type",
+            "location",
+            "min_investment",
+            "max_investment",
+            "expected_roi",
+        ):
+            if field not in payload:
+                continue
+            value = payload[field]
+            if isinstance(value, str):
+                value = value.strip()
+            setattr(entity, field, value)
 
-        if "data" in fields and fields["data"] is not None:
-            self._apply_payload(entity, fields["data"])
+        if can_review and "status" in payload and payload["status"] in ALLOWED_OPPORTUNITY_STATUSES:
+            entity.status = str(payload["status"])
+            entity.is_verified = entity.status == "open"
 
-        return await self._repository.update(entity)
+        return await self._repository.update_opportunity(entity)
+
+    async def verify_opportunity(self, entity: InvestmentOpportunity) -> InvestmentOpportunity:
+        entity.is_verified = True
+        entity.status = "open"
+        return await self._repository.update_opportunity(entity)
