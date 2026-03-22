@@ -29,16 +29,16 @@ app = FastAPI(
 )
 
 app.add_middleware(
+    JWTAuthMiddleware,
+    secret_key=settings.JWT_SECRET_KEY,
+    algorithm=settings.JWT_ALGORITHM,
+)
+app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-)
-app.add_middleware(
-    JWTAuthMiddleware,
-    secret_key=settings.JWT_SECRET_KEY,
-    algorithm=settings.JWT_ALGORITHM,
 )
 
 if settings.ENABLE_LOCAL_API:

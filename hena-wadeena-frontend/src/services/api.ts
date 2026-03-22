@@ -226,8 +226,10 @@ async function apiFetch<T>(endpoint: string, options: ApiFetchOptions = {}): Pro
 
   const hasFormData = typeof FormData !== "undefined" && body instanceof FormData;
 
+  const shouldSendJsonContentType = !hasFormData && body !== undefined && body !== null;
+
   const headers: Record<string, string> = {
-    ...(hasFormData ? {} : { "Content-Type": "application/json" }),
+    ...(shouldSendJsonContentType ? { "Content-Type": "application/json" } : {}),
     ...(skipAuth ? {} : getAuthHeader()),
     ...((incomingHeaders as Record<string, string> | undefined) || {}),
   };

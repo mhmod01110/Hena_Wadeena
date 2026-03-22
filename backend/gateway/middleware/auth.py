@@ -73,6 +73,9 @@ class JWTAuthMiddleware(BaseHTTPMiddleware):
         request.state.token_jti = payload["jti"]
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
+        if request.method == "OPTIONS":
+            return await call_next(request)
+
         if _is_public(request.url.path):
             token = self._extract_bearer_token(request)
             if token:
