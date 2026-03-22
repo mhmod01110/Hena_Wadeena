@@ -4,8 +4,44 @@
  * Centralized API client for backend communication through the gateway.
  */
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "") || "/api/v1";
+type LocationLike = Pick<Location, "protocol" | "hostname" | "port">;
+
+const trimTrailingSlash = (value: string) => value.replace(/\/$/, "");
+
+const normalizeApiBasePath = (value?: string | null) => {
+  const trimmed = value?.trim();
+  if (!trimmed) return "/api/v1";
+  return trimTrailingSlash(trimmed);
+};
+
+const isAbsoluteUrl = (value: string) => /^https?:\/\//i.test(value);
+
+const isLocalHost = (hostname: string) => ["localhost", "127.0.0.1", "::1", "[::1]"].includes(hostname);
+
+const resolveApiBaseUrl = (
+  configuredBaseUrl = import.meta.env.VITE_API_BASE_URL,
+  locationLike: LocationLike | null = typeof window !== "undefined" ? window.location : null,
+  isDev = Boolean(import.meta.env.DEV)
+) => {
+  const baseUrl = normalizeApiBasePath(configuredBaseUrl);
+
+  if (isAbsoluteUrl(baseUrl)) return baseUrl;
+
+  const relativeBase = baseUrl.startsWith("/") ? baseUrl : `/${baseUrl}`;
+
+  if (isDev) return relativeBase;
+
+  // `vite preview` serves the built frontend on :8080 while the gateway runs on :8000.
+  // When both are started separately in local production, relative `/api/v1` requests
+  // hit the frontend preview server instead of the backend gateway unless we expand them.
+  if (locationLike && isLocalHost(locationLike.hostname) && locationLike.port !== "8000") {
+    return `${locationLike.protocol}//${locationLike.hostname}:8000${relativeBase}`;
+  }
+
+  return relativeBase;
+};
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 interface ApiFetchOptions extends RequestInit {
   skipAuth?: boolean;
@@ -39,6 +75,14 @@ const parseApiError = (payload: unknown, status: number) => {
   }
 
   return `API Error ${status}`;
+};
+
+const INVALID_API_RESPONSE_MESSAGE =
+  "API request returned HTML instead of JSON. Check VITE_API_BASE_URL or route /api/v1 through the backend gateway.";
+
+const looksLikeHtmlResponse = (raw: string, contentType: string) => {
+  const trimmed = raw.trim().toLowerCase();
+  return contentType.includes("text/html") || trimmed.startsWith("<!doctype html") || trimmed.startsWith("<html");
 };
 
 const toEnvelope = <T>(payload: unknown): ApiEnvelope<T> => {
@@ -194,6 +238,8 @@ async function apiFetch<T>(endpoint: string, options: ApiFetchOptions = {}): Pro
     headers,
   });
 
+  const contentType = res.headers.get("content-type")?.toLowerCase() || "";
+
   if (res.status === 401 && !skipAuth && retryOnAuthError) {
     const renewed = await refreshAccessToken();
     if (renewed) return apiFetch<T>(endpoint, { ...options, retryOnAuthError: false });
@@ -201,6 +247,9 @@ async function apiFetch<T>(endpoint: string, options: ApiFetchOptions = {}): Pro
 
   if (!res.ok) {
     const raw = await res.text();
+    if (looksLikeHtmlResponse(raw, contentType)) {
+      throw new Error(INVALID_API_RESPONSE_MESSAGE);
+    }
     let payload: unknown = raw;
     if (raw) {
       try {
@@ -216,6 +265,10 @@ async function apiFetch<T>(endpoint: string, options: ApiFetchOptions = {}): Pro
 
   const raw = await res.text();
   if (!raw) return undefined as T;
+
+  if (looksLikeHtmlResponse(raw, contentType)) {
+    throw new Error(INVALID_API_RESPONSE_MESSAGE);
+  }
 
   try {
     return JSON.parse(raw) as T;
@@ -922,6 +975,10 @@ export const __investmentTestUtils = {
   toOpportunity,
   toInterest,
   toDashboard,
+};
+
+export const __apiTestUtils = {
+  resolveApiBaseUrl,
 };
 
 export interface POI {
