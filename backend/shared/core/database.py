@@ -20,6 +20,10 @@ def create_db_engine(database_url: str, echo: bool = False) -> AsyncEngine:
     return create_async_engine(
         database_url,
         echo=echo,
+        pool_pre_ping=True,
+        # Recycle MySQL connections before long-lived pooled sockets go stale,
+        # especially after DB restarts or provider-side idle timeouts.
+        pool_recycle=1800,
         pool_size=5,
         max_overflow=10,
     )
