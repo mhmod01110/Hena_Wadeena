@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Repository contract for GuideProfile."""
 
 from abc import ABC, abstractmethod

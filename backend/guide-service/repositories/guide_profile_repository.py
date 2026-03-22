@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """SQLAlchemy repository for GuideProfile."""
 
 from typing import Optional
